@@ -177,11 +177,25 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
 
     if (!ctx) return
 
+    // Check if video is ready
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      animationRef.current = requestAnimationFrame(detectQR)
+      return
+    }
+
+    // Set canvas dimensions
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
+    
+    // Draw video frame to canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
+    // Get image data for QR detection
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    
+    // Debug: Log canvas dimensions
+    console.log('Canvas dimensions:', canvas.width, 'x', canvas.height)
+    console.log('Image data size:', imageData.data.length)
     
     // Use jsQR for QR detection
     const code = jsQR(imageData.data, imageData.width, imageData.height)
@@ -192,6 +206,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
       return
     }
 
+    // Continue scanning
     animationRef.current = requestAnimationFrame(detectQR)
   }
 
@@ -390,6 +405,16 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
             Stop Scanning
           </button>
         )}
+      </div>
+
+      {/* Debug Test Button */}
+      <div className="mb-4">
+        <button
+          onClick={() => handleScanResult('TICKET-001-ANDIAMO-2024')}
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm"
+        >
+          🧪 Test QR Detection (Manual)
+        </button>
       </div>
 
       {/* Scan Results */}

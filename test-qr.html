@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .qr-code {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .qr-code img {
+            max-width: 200px;
+            height: auto;
+        }
+        .qr-code p {
+            color: black;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 QR Code Test</h1>
+        <p>Use these QR codes to test your scanner:</p>
+        
+        <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=TICKET-001-ANDIAMO-2024" alt="Test QR Code 1">
+            <p>TICKET-001-ANDIAMO-2024</p>
+        </div>
+        
+        <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=TICKET-002-ANDIAMO-2024" alt="Test QR Code 2">
+            <p>TICKET-002-ANDIAMO-2024</p>
+        </div>
+        
+        <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=TICKET-003-ANDIAMO-2024" alt="Test QR Code 3">
+            <p>TICKET-003-ANDIAMO-2024</p>
+        </div>
+        
+        <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=INVALID-TICKET-TEST" alt="Invalid Test QR Code">
+            <p>INVALID-TICKET-TEST</p>
+        </div>
+        
+        <h2>📱 How to Test:</h2>
+        <ol>
+            <li>Open your scanner app: <a href="https://andiamo-scanner.vercel.app" style="color: #007AFF;">https://andiamo-scanner.vercel.app</a></li>
+            <li>Select an event from the dropdown</li>
+            <li>Start scanning</li>
+            <li>Point your camera at these QR codes</li>
+            <li>Check the console for debug messages</li>
+        </ol>
+        
+        <h2>🔍 Debug Tips:</h2>
+        <ul>
+            <li>Make sure the QR code is well-lit</li>
+            <li>Hold the camera steady</li>
+            <li>Try different distances from the QR code</li>
+            <li>Check browser console for error messages</li>
+        </ul>
+    </div>
+</body>
+</html> 
