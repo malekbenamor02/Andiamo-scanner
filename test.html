@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Connection Test</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { padding: 10px 20px; margin: 10px; }
+        #results { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Supabase Connection Test</h1>
+    
+    <div>
+        <label>Supabase URL:</label><br>
+        <input type="text" id="url" placeholder="https://your-project.supabase.co" style="width: 400px; padding: 5px;">
+    </div>
+    <br>
+    <div>
+        <label>Anon Key:</label><br>
+        <input type="text" id="key" placeholder="your-anon-key" style="width: 400px; padding: 5px;">
+    </div>
+    <br>
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="testAmbassador()">Test Ambassador Login</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testConnection() {
+            clearResults();
+            
+            const url = document.getElementById('url').value;
+            const key = document.getElementById('key').value;
+            
+            if (!url || !key) {
+                log('❌ Please enter both URL and Key', 'error');
+                return;
+            }
+            
+            log('🔍 Testing Supabase connection...', 'info');
+            
+            try {
+                const supabase = window.supabase.createClient(url, key);
+                
+                // Test basic connection
+                const { data, error } = await supabase
+                    .from('ambassadors')
+                    .select('count')
+                    .limit(1);
+                
+                if (error) {
+                    log(`❌ Connection failed: ${error.message}`, 'error');
+                    return;
+                }
+                
+                log('✅ Connection successful!', 'success');
+                
+                // Test ambassadors table
+                const { data: ambassadors, error: ambassadorsError } = await supabase
+                    .from('ambassadors')
+                    .select('id, full_name, phone, status')
+                    .limit(5);
+                
+                if (ambassadorsError) {
+                    log(`❌ Ambassadors table error: ${ambassadorsError.message}`, 'error');
+                    return;
+                }
+                
+                log(`✅ Ambassadors table accessible! Found ${ambassadors.length} ambassadors:`, 'success');
+                
+                ambassadors.forEach(amb => {
+                    log(`- ${amb.full_name} (${amb.phone}) - Status: ${amb.status}`, 'info');
+                });
+                
+            } catch (error) {
+                log(`❌ Unexpected error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAmbassador() {
+            clearResults();
+            
+            const url = document.getElementById('url').value;
+            const key = document.getElementById('key').value;
+            
+            if (!url || !key) {
+                log('❌ Please enter both URL and Key', 'error');
+                return;
+            }
+            
+            log('🔍 Testing ambassador login...', 'info');
+            
+            try {
+                const supabase = window.supabase.createClient(url, key);
+                
+                // Test specific ambassador
+                const { data: ambassador, error } = await supabase
+                    .from('ambassadors')
+                    .select('*')
+                    .eq('phone', '27169458')
+                    .eq('password', '1234567890')
+                    .eq('status', 'approved')
+                    .single();
+                
+                if (error) {
+                    log(`❌ Ambassador not found: ${error.message}`, 'error');
+                    log('💡 You need to create the test ambassador account:', 'info');
+                    log(`
+INSERT INTO ambassadors (
+  full_name, phone, password, city, status, commission_rate, created_at, updated_at
+) VALUES (
+  'Test Ambassador', '27169458', '1234567890', 'Tunis', 'approved', 10.00, NOW(), NOW()
+);`, 'info');
+                } else {
+                    log(`✅ Test ambassador found: ${ambassador.full_name}`, 'success');
+                    log(`Phone: ${ambassador.phone}`, 'info');
+                    log(`Status: ${ambassador.status}`, 'info');
+                }
+                
+            } catch (error) {
+                log(`❌ Unexpected error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html> 
