@@ -245,8 +245,16 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     let result: ScanResult
 
     if (isOnline) {
-      // Simple validation logic - you can customize this
-      const isValidTicket = qrData.includes('TICKET') || qrData.includes('ANDIAMO')
+      // Simple validation logic - you can customize this (case insensitive)
+      const qrDataUpper = qrData.toUpperCase()
+      const isValidTicket = qrDataUpper.includes('TICKET') || qrDataUpper.includes('ANDIAMO')
+      
+      // Debug: Log the QR data and validation result
+      console.log('QR Data:', qrData)
+      console.log('QR Data (Upper):', qrDataUpper)
+      console.log('Contains TICKET:', qrDataUpper.includes('TICKET'))
+      console.log('Contains ANDIAMO:', qrDataUpper.includes('ANDIAMO'))
+      console.log('Is Valid:', isValidTicket)
       
       if (isValidTicket) {
         try {
@@ -294,7 +302,8 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     } else {
       // Store offline
       await addScanRecord(scanData)
-      const isValidTicket = qrData.includes('TICKET') || qrData.includes('ANDIAMO')
+      const qrDataUpper = qrData.toUpperCase()
+      const isValidTicket = qrDataUpper.includes('TICKET') || qrDataUpper.includes('ANDIAMO')
       result = { 
         success: isValidTicket, 
         message: isValidTicket ? 'Valid ticket - stored offline' : 'Invalid ticket - stored offline' 
@@ -450,7 +459,19 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
           onClick={() => handleScanResult('TICKET-001-ANDIAMO-2024')}
           className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm"
         >
-          🧪 Test QR Detection (Manual)
+          🧪 Test TICKET QR
+        </button>
+        <button
+          onClick={() => handleScanResult('ANDIAMO-EVENT-2024')}
+          className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm"
+        >
+          🧪 Test ANDIAMO QR
+        </button>
+        <button
+          onClick={() => handleScanResult('INVALID-TEST-123')}
+          className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm"
+        >
+          🧪 Test Invalid QR
         </button>
         <button
           onClick={() => setDebugMode(!debugMode)}
