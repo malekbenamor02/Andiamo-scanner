@@ -17,6 +17,13 @@ function App() {
   })
   const { syncOfflineData } = useOfflineStore()
 
+  // Add debug logging
+  console.log('App loading...')
+  console.log('Environment variables:', {
+    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+    hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
+  })
+
   useEffect(() => {
     // Check online status
     const handleOnline = () => setIsOnline(true)

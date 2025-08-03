@@ -72,8 +72,9 @@ const useOfflineStore = () => {
       const store = tx.objectStore('scans')
       const index = store.index('synced')
       
-      // Use IDBKeyRange to properly query for false values
-      return await index.getAll(IDBKeyRange.only(false))
+      // Use getAll() without parameters to get all records, then filter
+      const allScans = await index.getAll()
+      return allScans.filter((scan: any) => scan.synced === false)
     } catch (error) {
       console.error('Failed to get unsynced scans:', error)
       return []
