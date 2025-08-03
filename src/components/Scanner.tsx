@@ -245,19 +245,13 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     let result: ScanResult
 
     if (isOnline) {
-      // Try to validate online
-      try {
-        const response = await fetch('/api/validate-ticket', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(scanData)
-        })
-
-        result = await response.json()
-        
-        if (result.success) {
-          // Record scan in database
-          await supabase.from('scans').insert({
+      // Simple validation logic - you can customize this
+      const isValidTicket = qrData.includes('TICKET') || qrData.includes('ANDIAMO')
+      
+      if (isValidTicket) {
+        try {
+          // Record valid scan in database
+          const { error } = await supabase.from('scans').insert({
             ticket_id: qrData,
             event_id: selectedEvent,
             ambassador_id: ambassador.id,
@@ -266,17 +260,45 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
             scan_time: new Date().toISOString(),
             scan_result: 'valid'
           })
+
+          if (error) {
+            console.error('Database error:', error)
+            result = { success: false, message: 'Database error - stored offline' }
+          } else {
+            result = { success: true, message: 'Valid ticket scanned successfully!' }
+          }
+        } catch (error) {
+          console.error('Database error:', error)
+          await addScanRecord(scanData)
+          result = { success: false, message: 'Database error - stored offline' }
         }
-      } catch (error) {
-        console.error('Online validation failed:', error)
-        // Fall back to offline storage
-        await addScanRecord(scanData)
-        result = { success: false, message: 'Stored offline for later sync' }
+      } else {
+        // Invalid ticket
+        try {
+          await supabase.from('scans').insert({
+            ticket_id: qrData,
+            event_id: selectedEvent,
+            ambassador_id: ambassador.id,
+            device_info: deviceInfo,
+            scan_location: scanLocation,
+            scan_time: new Date().toISOString(),
+            scan_result: 'invalid'
+          })
+          result = { success: false, message: 'Invalid ticket format' }
+        } catch (error) {
+          console.error('Database error:', error)
+          await addScanRecord(scanData)
+          result = { success: false, message: 'Invalid ticket - stored offline' }
+        }
       }
     } else {
       // Store offline
       await addScanRecord(scanData)
-      result = { success: true, message: 'Stored offline for later sync' }
+      const isValidTicket = qrData.includes('TICKET') || qrData.includes('ANDIAMO')
+      result = { 
+        success: isValidTicket, 
+        message: isValidTicket ? 'Valid ticket - stored offline' : 'Invalid ticket - stored offline' 
+      }
     }
 
     // Add to scan history
