@@ -194,14 +194,17 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     
     // Debug: Log canvas dimensions
-    console.log('Canvas dimensions:', canvas.width, 'x', canvas.height)
-    console.log('Image data size:', imageData.data.length)
+    if (debugMode) {
+      console.log('Canvas dimensions:', canvas.width, 'x', canvas.height)
+      console.log('Image data size:', imageData.data.length)
+    }
     
     // Use jsQR for QR detection
     const code = jsQR(imageData.data, imageData.width, imageData.height)
     
     if (code) {
       console.log('QR Code detected:', code.data)
+      setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
       handleScanResult(code.data)
       return
     }
@@ -212,6 +215,8 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
 
   const [lastScannedCode, setLastScannedCode] = useState<string>('')
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
+  const [detectionMessage, setDetectionMessage] = useState<string>('')
+  const [debugMode, setDebugMode] = useState(false)
 
   const handleScanResult = async (qrData: string) => {
     if (!selectedEvent) {
@@ -280,6 +285,9 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
 
     // Clear the last scanned code after 3 seconds to allow re-scanning
     setTimeout(() => setLastScannedCode(''), 3000)
+    
+    // Clear detection message after 2 seconds
+    setTimeout(() => setDetectionMessage(''), 2000)
   }
 
   const startScanning = async () => {
@@ -375,6 +383,13 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
               <div className="border-2 border-green-500 rounded-lg bg-transparent w-48 h-48"></div>
             </div>
           )}
+
+          {/* Detection Message */}
+          {detectionMessage && (
+            <div className="absolute top-4 left-4 right-4 bg-green-600 text-white p-3 rounded-lg text-center font-medium">
+              {detectionMessage}
+            </div>
+          )}
           
           {/* Status Badge */}
           {isInitialized && (
@@ -407,13 +422,21 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         )}
       </div>
 
-      {/* Debug Test Button */}
-      <div className="mb-4">
+      {/* Debug Controls */}
+      <div className="mb-4 space-y-2">
         <button
           onClick={() => handleScanResult('TICKET-001-ANDIAMO-2024')}
           className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm"
         >
           🧪 Test QR Detection (Manual)
+        </button>
+        <button
+          onClick={() => setDebugMode(!debugMode)}
+          className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm ${
+            debugMode ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-600 hover:bg-gray-700'
+          }`}
+        >
+          {debugMode ? '🔇 Disable Debug' : '🔊 Enable Debug'}
         </button>
       </div>
 
