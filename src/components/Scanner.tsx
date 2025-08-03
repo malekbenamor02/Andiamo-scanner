@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History } from 'lucide-react'
+import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, Upload, Image } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useOfflineStore } from '../hooks/useOfflineStore'
 import jsQR from 'jsqr'
@@ -217,6 +217,8 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
   const [detectionMessage, setDetectionMessage] = useState<string>('')
   const [debugMode, setDebugMode] = useState(false)
+  const [capturedImage, setCapturedImage] = useState<string>('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleScanResult = async (qrData: string) => {
     if (!selectedEvent) {
@@ -337,6 +339,74 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     stopCamera()
   }
 
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) return
+
+    // Set canvas dimensions to match video
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    
+    // Draw current video frame to canvas
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    
+    // Convert canvas to data URL
+    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8)
+    setCapturedImage(imageDataUrl)
+    
+    // Analyze the captured image for QR codes
+    analyzeImageForQR(canvas)
+  }
+
+  const analyzeImageForQR = (canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    
+    // Use jsQR to detect QR codes in the image
+    const code = jsQR(imageData.data, imageData.width, imageData.height)
+    
+    if (code) {
+      console.log('QR Code found in captured image:', code.data)
+      setDetectionMessage(`📸 QR Code detected in photo: ${code.data}`)
+      handleScanResult(code.data)
+    } else {
+      console.log('No QR code found in captured image')
+      setDetectionMessage('📸 No QR code found in captured image')
+      setTimeout(() => setDetectionMessage(''), 3000)
+    }
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new window.Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+        
+        setCapturedImage(e.target?.result as string)
+        analyzeImageForQR(canvas)
+      }
+      img.src = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+
   return (
     <div className="p-4 max-w-md mx-auto">
       {/* Header */}
@@ -453,6 +523,33 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         )}
       </div>
 
+      {/* Photo Capture Controls */}
+      <div className="mb-4 space-y-2">
+        <button
+          onClick={capturePhoto}
+          disabled={!isInitialized}
+          className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-4 py-2 rounded-lg text-sm"
+        >
+          📸 Capture & Analyze Photo
+        </button>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-lg text-sm"
+          >
+            📁 Upload Photo
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+        </div>
+      </div>
+
       {/* Debug Controls */}
       <div className="mb-4 space-y-2">
         <button
@@ -483,52 +580,72 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         </button>
       </div>
 
-      {/* Scan Results */}
-      <div className="space-y-3">
-        {/* Current Scan Result */}
-        {scanResult && (
-          <div className={`p-4 rounded-lg border ${
-            scanResult.success 
-              ? 'bg-green-900 border-green-500' 
-              : 'bg-red-900 border-red-500'
-          }`}>
-            <div className="flex items-center gap-2 mb-2">
-              {scanResult.success ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              ) : (
-                <XCircle className="w-5 h-5 text-red-400" />
-              )}
-              <span className="font-medium">
-                {scanResult.success ? 'Valid Ticket' : 'Invalid Ticket'}
-              </span>
+                {/* Captured Image Display */}
+          {capturedImage && (
+            <div className="mb-4">
+              <h3 className="text-sm font-medium mb-2 text-gray-300">Captured Image</h3>
+              <div className="relative">
+                <img 
+                  src={capturedImage} 
+                  alt="Captured QR code" 
+                  className="w-full h-32 object-cover rounded-lg border border-gray-600"
+                />
+                <button
+                  onClick={() => setCapturedImage('')}
+                  className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded-full text-xs"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-            <p className="text-sm text-gray-300">{scanResult.message}</p>
-          </div>
-        )}
+          )}
 
-        {/* Scan History */}
-        {scanHistory.length > 0 && (
-          <div className="bg-gray-800 rounded-lg p-3">
-            <h3 className="text-sm font-medium mb-2 text-gray-300">Recent Scans</h3>
-            <div className="space-y-2">
-              {scanHistory.slice(1).map((result, index) => (
-                <div key={index} className={`flex items-center gap-2 p-2 rounded ${
-                  result.success ? 'bg-green-900/50' : 'bg-red-900/50'
-                }`}>
-                  {result.success ? (
-                    <CheckCircle className="w-4 h-4 text-green-400" />
+          {/* Scan Results */}
+          <div className="space-y-3">
+            {/* Current Scan Result */}
+            {scanResult && (
+              <div className={`p-4 rounded-lg border ${
+                scanResult.success 
+                  ? 'bg-green-900 border-green-500' 
+                  : 'bg-red-900 border-red-500'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {scanResult.success ? (
+                    <CheckCircle className="w-5 h-5 text-green-400" />
                   ) : (
-                    <XCircle className="w-4 h-4 text-red-400" />
+                    <XCircle className="w-5 h-5 text-red-400" />
                   )}
-                  <span className="text-xs text-gray-300">
-                    {result.success ? 'Valid' : 'Invalid'} - {result.message}
+                  <span className="font-medium">
+                    {scanResult.success ? 'Valid Ticket' : 'Invalid Ticket'}
                   </span>
                 </div>
-              ))}
-            </div>
+                <p className="text-sm text-gray-300">{scanResult.message}</p>
+              </div>
+            )}
+
+            {/* Scan History */}
+            {scanHistory.length > 0 && (
+              <div className="bg-gray-800 rounded-lg p-3">
+                <h3 className="text-sm font-medium mb-2 text-gray-300">Recent Scans</h3>
+                <div className="space-y-2">
+                  {scanHistory.slice(1).map((result, index) => (
+                    <div key={index} className={`flex items-center gap-2 p-2 rounded ${
+                      result.success ? 'bg-green-900/50' : 'bg-red-900/50'
+                    }`}>
+                      {result.success ? (
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-400" />
+                      )}
+                      <span className="text-xs text-gray-300">
+                        {result.success ? 'Valid' : 'Invalid'} - {result.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
       {/* Offline Queue Info */}
       {!isOnline && (
