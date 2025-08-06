@@ -37,7 +37,7 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
       // Sync offline data first
       await syncOfflineData()
 
-      // Load online scans
+      // Load online scans with better query
       const { data: onlineScans, error } = await supabase
         .from('scans')
         .select(`
@@ -47,7 +47,7 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
         `)
         .eq('ambassador_id', ambassador.id)
         .order('scan_time', { ascending: false })
-        .limit(100)
+        .limit(200) // Increased limit to get more scans
 
       if (error) {
         console.error('Failed to load online scans:', error)
@@ -60,37 +60,92 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
       const formattedScans: ScanRecord[] = []
       
       // Add online scans
-      if (onlineScans) {
+      if (onlineScans && onlineScans.length > 0) {
+        console.log('Loaded online scans:', onlineScans.length)
         onlineScans.forEach(scan => {
           formattedScans.push({
             ...scan,
-            event_name: scan.events?.name,
-            ambassador_name: scan.ambassadors?.full_name
+            event_name: scan.events?.name || 'Unknown Event',
+            ambassador_name: scan.ambassadors?.full_name || ambassador.full_name
           })
         })
+      } else {
+        console.log('No online scans found')
       }
       
       // Add offline scans
-      offlineScans.forEach(scan => {
-        formattedScans.push({
-          id: scan.id,
-          ticket_id: scan.qrCode,
-          event_id: scan.eventId,
-          ambassador_id: scan.ambassadorId,
-          device_info: scan.deviceInfo,
-          scan_location: scan.scanLocation,
-          scan_time: new Date(scan.timestamp).toISOString(),
-          scan_result: 'pending',
-          event_name: 'Offline Event',
-          ambassador_name: ambassador.full_name
+      if (offlineScans && offlineScans.length > 0) {
+        console.log('Loaded offline scans:', offlineScans.length)
+        offlineScans.forEach(scan => {
+          formattedScans.push({
+            id: scan.id,
+            ticket_id: scan.qrCode,
+            event_id: scan.eventId,
+            ambassador_id: scan.ambassadorId,
+            device_info: scan.deviceInfo,
+            scan_location: scan.scanLocation,
+            scan_time: new Date(scan.timestamp).toISOString(),
+            scan_result: 'pending',
+            event_name: 'Offline Event',
+            ambassador_name: ambassador.full_name
+          })
         })
-      })
+      } else {
+        console.log('No offline scans found')
+      }
 
+      console.log('Total formatted scans:', formattedScans.length)
       setScans(formattedScans)
     } catch (error) {
       console.error('Failed to load scans:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const testDatabaseConnection = async () => {
+    try {
+      console.log('Testing database connection...')
+      
+      // Test 1: Check if we can access scans table
+      const { data: allScans, error: allScansError } = await supabase
+        .from('scans')
+        .select('count')
+        .limit(1)
+      
+      if (allScansError) {
+        console.error('Error accessing scans table:', allScansError)
+      } else {
+        console.log('✅ Can access scans table')
+      }
+      
+      // Test 2: Check total scans in database
+      const { count: totalScans, error: countError } = await supabase
+        .from('scans')
+        .select('*', { count: 'exact', head: true })
+      
+      if (countError) {
+        console.error('Error counting scans:', countError)
+      } else {
+        console.log('Total scans in database:', totalScans)
+      }
+      
+      // Test 3: Check scans for this ambassador
+      const { data: ambassadorScans, error: ambassadorError } = await supabase
+        .from('scans')
+        .select('*')
+        .eq('ambassador_id', ambassador.id)
+        .limit(10)
+      
+      if (ambassadorError) {
+        console.error('Error loading ambassador scans:', ambassadorError)
+      } else {
+        console.log('Scans for this ambassador:', ambassadorScans?.length || 0)
+        console.log('Ambassador scans:', ambassadorScans)
+      }
+      
+    } catch (error) {
+      console.error('Database test error:', error)
     }
   }
 
@@ -163,13 +218,21 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
             Back
           </button>
           <h1 className="text-2xl font-bold">Scan History</h1>
-          <button
-            onClick={loadScans}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={testDatabaseConnection}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg transition-colors text-sm"
+            >
+              Test DB
+            </button>
+            <button
+              onClick={loadScans}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -232,6 +295,21 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
           </button>
         </div>
       </div>
+
+      {/* Debug Info (temporary) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-4 bg-gray-800 rounded-xl border border-gray-600">
+          <h3 className="text-sm font-semibold mb-2 text-gray-300">Debug Info</h3>
+          <div className="text-xs text-gray-400 space-y-1">
+            <div>Total Scans: {scans.length}</div>
+            <div>Filtered Scans: {filteredScans.length}</div>
+            <div>Ambassador ID: {ambassador.id}</div>
+            <div>Loading: {loading ? 'Yes' : 'No'}</div>
+            <div>Search Term: "{searchTerm}"</div>
+            <div>Filter Status: {filterStatus}</div>
+          </div>
+        </div>
+      )}
 
       {/* Scan List */}
       {loading ? (
