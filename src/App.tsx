@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import Scanner from './components/Scanner'
 import Login from './components/Login'
 import ScanHistory from './components/ScanHistory'
@@ -37,11 +37,7 @@ function App() {
     setCurrentPage('scanner')
   }
 
-  const handleLogout = () => {
-    setAmbassador(null)
-    localStorage.removeItem('ambassador')
-    setCurrentPage('login')
-  }
+
 
   const handleNavigateToHistory = () => {
     setCurrentPage('history')
