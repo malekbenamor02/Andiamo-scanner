@@ -273,9 +273,19 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       
       if (code && code.data) {
         console.log('QR Code detected:', code.data)
+        
+        // Prevent rapid re-scanning of the same QR code
+        if (isProcessingQR || lastScannedCode === code.data) {
+          console.log('Skipping QR code - already processing or recently scanned')
+          return
+        }
+        
         setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
+        setIsProcessingQR(true)
+        
         // Automatically analyze the QR code
         handleScanResult(code.data)
+        
         // Don't return here - continue scanning for next QR code
       } else {
         // Only log occasionally to avoid spam
@@ -315,6 +325,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   const [lastScannedCode, setLastScannedCode] = useState<string>('')
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
   const [detectionMessage, setDetectionMessage] = useState<string>('')
+  const [isProcessingQR, setIsProcessingQR] = useState(false)
 
 
   const handleScanResult = async (qrData: string) => {
@@ -524,6 +535,12 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     
     // Clear scan result after 5 seconds
     setTimeout(() => setScanResult(null), 5000)
+    
+    // Reset processing state after 4 seconds to allow new scans
+    setTimeout(() => {
+      setIsProcessingQR(false)
+      console.log('QR processing cooldown finished - ready for new scans')
+    }, 4000)
   }
 
   const startScanning = async () => {
