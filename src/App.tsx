@@ -1,99 +1,75 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
 import Scanner from './components/Scanner'
 import Login from './components/Login'
-import OfflineQueue from './components/OfflineQueue'
 import ScanHistory from './components/ScanHistory'
-import { useOfflineStore } from './hooks/useOfflineStore'
 import './App.css'
 
+interface Ambassador {
+  id: string
+  full_name: string
+  phone: string
+  status: string
+}
+
 function App() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [isAuthenticated, setIsAuthenticated] = useState(true) // Auto-authenticate for testing
-  const [ambassador, setAmbassador] = useState<any>({
-    id: '7530c1e1-5fc0-4891-9fbb-4639ee8aafac',
-    full_name: 'Malek Ben Amor',
-    phone: '27169458'
-  })
-  const { syncOfflineData } = useOfflineStore()
+  const [ambassador, setAmbassador] = useState<Ambassador | null>(null)
+  const [currentPage, setCurrentPage] = useState<'login' | 'scanner' | 'history'>('login')
 
-  // Add debug logging
-  console.log('App loading...')
-  console.log('Environment variables:', {
-    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-    hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
-  })
-
+  // Check if user is already logged in (from localStorage)
   useEffect(() => {
-    // Check online status
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-    
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    // Sync offline data when coming back online
-    if (isOnline) {
-      syncOfflineData()
+    const savedAmbassador = localStorage.getItem('ambassador')
+    if (savedAmbassador) {
+      try {
+        const parsedAmbassador = JSON.parse(savedAmbassador)
+        setAmbassador(parsedAmbassador)
+        setCurrentPage('scanner')
+      } catch (error) {
+        console.error('Error parsing saved ambassador:', error)
+        localStorage.removeItem('ambassador')
+      }
     }
+  }, [])
 
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [isOnline, syncOfflineData])
+  const handleLogin = (ambassadorData: Ambassador) => {
+    setAmbassador(ambassadorData)
+    // Save to localStorage for persistence
+    localStorage.setItem('ambassador', JSON.stringify(ambassadorData))
+    setCurrentPage('scanner')
+  }
 
-  return (
-    <Router>
-      <div className="min-h-screen bg-gray-900 text-white">
-        {/* Online/Offline Status */}
-        <div className={`fixed top-0 left-0 right-0 z-50 p-2 text-center text-sm ${
-          isOnline ? 'bg-green-600' : 'bg-red-600'
-        }`}>
-          {isOnline ? '🟢 Online' : '🔴 Offline'}
-        </div>
+  const handleLogout = () => {
+    setAmbassador(null)
+    localStorage.removeItem('ambassador')
+    setCurrentPage('login')
+  }
 
-        <div className="pt-12">
-          <Routes>
-            <Route 
-              path="/" 
-              element={
-                isAuthenticated ? (
-                  <Scanner ambassador={ambassador} />
-                ) : (
-                  <Login onLogin={setIsAuthenticated} setAmbassador={setAmbassador} />
-                )
-              } 
-            />
-            <Route 
-              path="/ambassador" 
-              element={
-                isAuthenticated ? (
-                  <Scanner ambassador={ambassador} />
-                ) : (
-                  <Login onLogin={setIsAuthenticated} setAmbassador={setAmbassador} />
-                )
-              } 
-            />
-            <Route 
-              path="/offline-queue" 
-              element={<OfflineQueue />} 
-            />
-            <Route 
-              path="/history" 
-              element={
-                isAuthenticated ? (
-                  <ScanHistory ambassador={ambassador} />
-                ) : (
-                  <Login onLogin={setIsAuthenticated} setAmbassador={setAmbassador} />
-                )
-              } 
-            />
-          </Routes>
-        </div>
-      </div>
-    </Router>
-  )
+  const handleNavigateToHistory = () => {
+    setCurrentPage('history')
+  }
+
+  const handleNavigateToScanner = () => {
+    setCurrentPage('scanner')
+  }
+
+  // Show login page if not authenticated
+  if (!ambassador) {
+    return <Login onLogin={handleLogin} />
+  }
+
+  // Show appropriate page based on current state
+  switch (currentPage) {
+    case 'history':
+      return <ScanHistory 
+        ambassador={ambassador} 
+        onNavigateBack={handleNavigateToScanner}
+      />
+    case 'scanner':
+    default:
+      return <Scanner 
+        ambassador={ambassador} 
+        onNavigateToHistory={handleNavigateToHistory}
+      />
+  }
 }
 
 export default App 

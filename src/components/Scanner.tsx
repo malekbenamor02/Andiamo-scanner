@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, Image } from 'lucide-react'
+import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, Image, LogOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useOfflineStore } from '../hooks/useOfflineStore'
 import jsQR from 'jsqr'
@@ -18,15 +18,17 @@ interface ScanResult {
 
 interface ScannerProps {
   ambassador: any
+  onNavigateToHistory?: () => void
 }
 
-const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
+const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) => {
   const [isScanning, setIsScanning] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState('')
   const [events, setEvents] = useState<Event[]>([])
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -36,6 +38,15 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
   const { addScanRecord } = useOfflineStore()
 
   useEffect(() => {
+    // Check if ambassador is authenticated
+    if (ambassador && ambassador.id) {
+      setIsAuthenticated(true)
+    } else {
+      setIsAuthenticated(false)
+      // Redirect to login if not authenticated
+      window.location.href = '/'
+    }
+    
     // Load events
     loadEvents()
     
@@ -50,7 +61,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [])
+  }, [ambassador])
 
   const loadEvents = async () => {
     try {
@@ -186,67 +197,65 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
       return
     }
 
-    // Set canvas dimensions
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    
-    // Draw video frame to canvas
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    // Get image data for QR detection
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    
-    // Try multiple detection methods for better accuracy
-    let code = null
-    
     try {
-      // Method 1: Standard detection
-      code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
-      })
+      // Set canvas dimensions
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
       
-      // Method 2: Try with inversion if first attempt fails
-      if (!code) {
-        code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "attemptBoth",
-        })
+      // Draw video frame to canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      // Get image data for QR detection
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      
+      // Simple QR detection with error handling
+      let code = null
+      
+      try {
+        // Try standard detection first
+        code = jsQR(imageData.data, imageData.width, imageData.height)
+      } catch (error) {
+        console.log('QR detection error (standard):', error)
       }
       
-      // Method 3: Try with different settings if still no result
+      // If no code found, try with different settings
       if (!code) {
-        code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "onlyInvert",
-        })
+        try {
+          code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "attemptBoth",
+          })
+        } catch (error) {
+          console.log('QR detection error (inversion):', error)
+        }
       }
+      
+      if (code && code.data) {
+        console.log('QR Code detected:', code.data)
+        setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
+        // Automatically analyze the QR code
+        handleScanResult(code.data)
+        return
+      }
+
+      // No QR code detected - show message less frequently
+      const shouldShowMessage = !detectionMessage || 
+                              (!detectionMessage.includes('No QR code') && 
+                               !detectionMessage.includes('QR Code Detected'))
+      
+      if (shouldShowMessage) {
+        setDetectionMessage('🔍 Scanning... No QR code detected')
+        // Clear the "no QR code" message after 2 seconds
+        setTimeout(() => {
+          setDetectionMessage(prev => prev === '🔍 Scanning... No QR code detected' ? '' : prev)
+        }, 2000)
+      }
+
     } catch (error) {
-      console.error('QR detection error:', error)
+      console.error('Canvas/Video error:', error)
       // Continue scanning even if there's an error
-      animationRef.current = requestAnimationFrame(detectQR)
-      return
-    }
-    
-    if (code && code.data) {
-      console.log('QR Code detected:', code.data)
-      setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
-      // Automatically analyze the QR code
-      handleScanResult(code.data)
-      return
     }
 
-    // No QR code detected - show message less frequently to avoid spam
-    const shouldShowMessage = !detectionMessage || 
-                            (!detectionMessage.includes('No QR code') && 
-                             !detectionMessage.includes('QR Code Detected'))
-    
-    if (shouldShowMessage) {
-      setDetectionMessage('🔍 Scanning... No QR code detected')
-      // Clear the "no QR code" message after 2 seconds
-      setTimeout(() => {
-        setDetectionMessage(prev => prev === '🔍 Scanning... No QR code detected' ? '' : prev)
-      }, 2000)
-    }
-
-    // Continue scanning with optimized frame rate
+    // Continue scanning
     animationRef.current = requestAnimationFrame(detectQR)
   }
 
@@ -254,7 +263,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
   const [detectionMessage, setDetectionMessage] = useState<string>('')
   const [capturedImage, setCapturedImage] = useState<string>('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
 
   const handleScanResult = async (qrData: string) => {
     if (!selectedEvent) {
@@ -295,7 +304,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         if (ticketError || !ticket) {
           // Ticket not found in database
           try {
-            await supabase.from('scans').insert({
+            const { error: scanError } = await supabase.from('scans').insert({
               ticket_id: qrData,
               event_id: selectedEvent,
               ambassador_id: ambassador.id,
@@ -304,6 +313,18 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
               scan_time: new Date().toISOString(),
               scan_result: 'invalid'
             })
+
+            if (scanError) {
+              console.error('Error recording invalid scan:', scanError)
+            } else {
+              console.log('✅ Invalid scan recorded successfully:', {
+                ticket_id: qrData,
+                event_id: selectedEvent,
+                ambassador_id: ambassador.id,
+                scan_result: 'invalid'
+              })
+            }
+
             result = { success: false, message: '❌ Invalid ticket - not found in database' }
           } catch (error) {
             console.error('Database error:', error)
@@ -334,7 +355,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
             if (ticket.status === 'used') {
               // Ticket already used
               try {
-                await supabase.from('scans').insert({
+                const { error: scanError } = await supabase.from('scans').insert({
                   ticket_id: qrData,
                   event_id: selectedEvent,
                   ambassador_id: ambassador.id,
@@ -343,6 +364,18 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
                   scan_time: new Date().toISOString(),
                   scan_result: 'already_used'
                 })
+
+                if (scanError) {
+                  console.error('Error recording already used scan:', scanError)
+                } else {
+                  console.log('✅ Already used scan recorded successfully:', {
+                    ticket_id: qrData,
+                    event_id: selectedEvent,
+                    ambassador_id: ambassador.id,
+                    scan_result: 'already_used'
+                  })
+                }
+
                 result = { 
                   success: false, 
                   message: `⚠️ Ticket already used! Customer: ${ticket.customer_name}, Type: ${ticket.ticket_type}`,
@@ -373,6 +406,13 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
 
                 if (scanError) {
                   console.error('Error recording scan:', scanError)
+                } else {
+                  console.log('✅ Scan recorded successfully:', {
+                    ticket_id: qrData,
+                    event_id: selectedEvent,
+                    ambassador_id: ambassador.id,
+                    scan_result: 'valid'
+                  })
                 }
 
                 // Mark ticket as used in tickets table
@@ -429,6 +469,9 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     
     // Clear detection message after 2 seconds
     setTimeout(() => setDetectionMessage(''), 2000)
+    
+    // Clear scan result after 5 seconds
+    setTimeout(() => setScanResult(null), 5000)
   }
 
   const startScanning = async () => {
@@ -473,317 +516,344 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
 
   const analyzeImageForQR = (canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    
-    // Try multiple detection methods for better accuracy
-    let code = null
-    
-    try {
-      // Method 1: Standard detection
-      code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
-      })
-      
-      // Method 2: Try with inversion if first attempt fails
-      if (!code) {
-        code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "attemptBoth",
-        })
-      }
-      
-      // Method 3: Try with different settings if still no result
-      if (!code) {
-        code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "onlyInvert",
-        })
-      }
-    } catch (error) {
-      console.error('QR detection error in photo analysis:', error)
-      setDetectionMessage('❌ Error analyzing photo')
+    if (!ctx) {
+      setDetectionMessage('❌ Error: Cannot access canvas')
       setTimeout(() => setDetectionMessage(''), 3000)
       return
     }
-    
-    if (code && code.data) {
-      console.log('QR Code found in captured image:', code.data)
-      setDetectionMessage(`📸 QR Code detected in photo: ${code.data}`)
-      // Automatically process the QR code
-      handleScanResult(code.data)
-    } else {
-      console.log('No QR code found in captured image')
-      setDetectionMessage('📸 No QR code found in captured image')
+
+    try {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      
+      // Simple QR detection with error handling
+      let code = null
+      
+      try {
+        // Try standard detection first
+        code = jsQR(imageData.data, imageData.width, imageData.height)
+      } catch (error) {
+        console.log('QR detection error in photo (standard):', error)
+      }
+      
+      // If no code found, try with different settings
+      if (!code) {
+        try {
+          code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "attemptBoth",
+          })
+        } catch (error) {
+          console.log('QR detection error in photo (inversion):', error)
+        }
+      }
+      
+      if (code && code.data) {
+        console.log('QR Code found in captured image:', code.data)
+        setDetectionMessage(`📸 QR Code detected in photo: ${code.data}`)
+        // Automatically process the QR code
+        handleScanResult(code.data)
+      } else {
+        console.log('No QR code found in captured image')
+        setDetectionMessage('📸 No QR code found in captured image')
+        setTimeout(() => setDetectionMessage(''), 3000)
+      }
+    } catch (error) {
+      console.error('Photo analysis error:', error)
+      setDetectionMessage('❌ Error analyzing photo')
       setTimeout(() => setDetectionMessage(''), 3000)
     }
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const img = new window.Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-
-        canvas.width = img.width
-        canvas.height = img.height
-        ctx.drawImage(img, 0, 0)
-        
-        setCapturedImage(e.target?.result as string)
-        analyzeImageForQR(canvas)
-      }
-      img.src = e.target?.result as string
-    }
-    reader.readAsDataURL(file)
-  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="text-center mb-4">
-          <h1 className="text-3xl font-bold mb-2 text-white">QR Scanner</h1>
-          <p className="text-gray-300 text-lg">Welcome, {ambassador?.full_name}</p>
-          
-          {/* Online/Offline Status */}
-          <div className="flex items-center justify-center mt-3">
-            {isOnline ? (
-              <div className="flex items-center bg-green-900/50 px-3 py-1 rounded-full">
-                <Wifi className="w-4 h-4 text-green-400 mr-2" />
-                <span className="text-sm text-green-300">Online</span>
-              </div>
-            ) : (
-              <div className="flex items-center bg-red-900/50 px-3 py-1 rounded-full">
-                <WifiOff className="w-4 h-4 text-red-400 mr-2" />
-                <span className="text-sm text-red-300">Offline Mode</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex justify-center">
-          <button
-            onClick={() => window.location.href = '/history'}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-medium transition-colors"
-          >
-            <History className="w-5 h-5" />
-            View History
-          </button>
-        </div>
-      </div>
-
-      {/* Event Selection */}
-      <div className="mb-6">
-        <label className="block text-lg font-semibold mb-3 text-white">Select Event</label>
-        <select
-          value={selectedEvent}
-          onChange={(e) => setSelectedEvent(e.target.value)}
-          className="w-full p-4 bg-gray-800 border-2 border-gray-700 rounded-xl text-white text-lg focus:border-blue-500 focus:outline-none"
-        >
-          <option value="">Choose an event...</option>
-          {events.map(event => (
-            <option key={event.id} value={event.id}>
-              {event.name} - {new Date(event.date).toLocaleDateString()}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Camera Feed */}
-      <div className="mb-6">
-        <div className="relative">
-          <video
-            ref={videoRef}
-            className={`w-full h-80 object-cover rounded-xl border-4 ${
-              isInitialized ? 'border-green-500' : 'border-gray-600'
-            }`}
-            autoPlay
-            playsInline
-            muted
-            webkit-playsinline="true"
-            x5-playsinline="true"
-            x5-video-player-type="h5"
-            x5-video-player-fullscreen="true"
-          />
-          <canvas
-            ref={canvasRef}
-            className="hidden"
-          />
-          
-          {/* Scanning Overlay */}
-          {isScanning && isInitialized && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="border-4 border-green-500 rounded-xl bg-transparent w-64 h-64"></div>
-            </div>
-          )}
-
-          {/* Detection Message */}
-          {detectionMessage && (
-            <div className="absolute top-4 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl text-center font-semibold text-lg shadow-lg">
-              {detectionMessage}
-            </div>
-          )}
-          
-          {/* Status Badge */}
-          {isInitialized && (
-            <div className="absolute top-4 right-4 bg-green-600 text-white text-sm px-3 py-1 rounded-full font-semibold">
-              LIVE
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="flex gap-4 mb-6">
-        {!isScanning ? (
-          <button
-            onClick={startScanning}
-            disabled={!selectedEvent}
-            className="flex-1 flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
-          >
-            <Camera className="w-6 h-6" />
-            Start Scanning
-          </button>
-        ) : (
-          <button
-            onClick={stopScanning}
-            className="flex-1 flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
-          >
-            <XCircle className="w-6 h-6" />
-            Stop Scanning
-          </button>
-        )}
-        
-        <button
-          onClick={capturePhoto}
-          disabled={!isInitialized}
-          className="flex-1 flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
-        >
-          <Image className="w-6 h-6" />
-          Capture & Analyze
-        </button>
-      </div>
-
-      {/* File Upload */}
-      <div className="mb-6">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center justify-center gap-3 bg-orange-600 hover:bg-orange-700 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
-        >
-          📁 Upload Photo to Analyze
-        </button>
-      </div>
-
-      {/* Captured Image Display */}
-      {capturedImage && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-3 text-white">Captured Image</h3>
-          <div className="relative">
-            <img 
-              src={capturedImage} 
-              alt="Captured QR code" 
-              className="w-full h-40 object-cover rounded-xl border-2 border-gray-600"
-            />
+      {/* Authentication Check */}
+      {!isAuthenticated ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">Authentication Required</h1>
+            <p className="text-gray-300 mb-6">Please log in to access the scanner</p>
             <button
-              onClick={() => setCapturedImage('')}
-              className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full text-sm"
+              onClick={() => window.location.href = '/'}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-semibold"
             >
-              ✕
+              Go to Login
             </button>
           </div>
         </div>
-      )}
-
-      {/* Scan Results */}
-      <div className="space-y-4">
-        {/* Current Scan Result */}
-        {scanResult && (
-          <div className={`p-6 rounded-xl border-2 ${
-            scanResult.success 
-              ? 'bg-green-900/50 border-green-500' 
-              : scanResult.message.includes('already used')
-              ? 'bg-yellow-900/50 border-yellow-500'
-              : 'bg-red-900/50 border-red-500'
-          }`}>
-            <div className="flex items-center gap-3 mb-3">
-              {scanResult.success ? (
-                <CheckCircle className="w-6 h-6 text-green-400" />
-              ) : scanResult.message.includes('already used') ? (
-                <XCircle className="w-6 h-6 text-yellow-400" />
-              ) : (
-                <XCircle className="w-6 h-6 text-red-400" />
-              )}
-              <span className="text-xl font-semibold">
-                {scanResult.success 
-                  ? 'Valid Ticket' 
-                  : scanResult.message.includes('already used')
-                  ? 'Ticket Already Used'
-                  : 'Invalid Ticket'
-                }
-              </span>
-            </div>
-            <p className="text-lg text-gray-200">{scanResult.message}</p>
-          </div>
-        )}
-
-        {/* Scan History */}
-        {scanHistory.length > 0 && (
-          <div className="bg-gray-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-4 text-white">Recent Scans</h3>
-            <div className="space-y-3">
-              {scanHistory.slice(1).map((result, index) => (
-                <div key={index} className={`flex items-center gap-3 p-4 rounded-lg ${
-                  result.success 
-                    ? 'bg-green-900/30 border border-green-500/30' 
-                    : result.message.includes('already used')
-                    ? 'bg-yellow-900/30 border border-yellow-500/30'
-                    : 'bg-red-900/30 border border-red-500/30'
-                }`}>
-                  {result.success ? (
-                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-                  ) : result.message.includes('already used') ? (
-                    <XCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-                  )}
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">
-                      {result.success 
-                        ? 'Valid' 
-                        : result.message.includes('already used')
-                        ? 'Already Used'
-                        : 'Invalid'
-                      }
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">{result.message}</div>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="mb-6">
+            <div className="text-center mb-4">
+              <h1 className="text-3xl font-bold mb-2 text-white">QR Scanner</h1>
+              <p className="text-gray-300 text-lg">Welcome, {ambassador?.full_name}</p>
+              
+              {/* Online/Offline Status */}
+              <div className="flex items-center justify-center mt-3">
+                {isOnline ? (
+                  <div className="flex items-center bg-green-900/50 px-3 py-1 rounded-full">
+                    <Wifi className="w-4 h-4 text-green-400 mr-2" />
+                    <span className="text-sm text-green-300">Online</span>
                   </div>
-                </div>
-              ))}
+                ) : (
+                  <div className="flex items-center bg-red-900/50 px-3 py-1 rounded-full">
+                    <WifiOff className="w-4 h-4 text-red-400 mr-2" />
+                    <span className="text-sm text-red-300">Offline Mode</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Offline Queue Info */}
-      {!isOnline && (
-        <div className="mt-6 p-4 bg-yellow-900/50 border border-yellow-600 rounded-xl">
-          <p className="text-yellow-200 text-center">
-            Scans will be stored offline and synced when connection is restored.
-          </p>
-        </div>
+          {/* Event Selection */}
+          <div className="mb-6">
+            <label className="block text-lg font-semibold mb-3 text-white">Select Event</label>
+            <select
+              value={selectedEvent}
+              onChange={(e) => setSelectedEvent(e.target.value)}
+              className="w-full p-4 bg-gray-800 border-2 border-gray-700 rounded-xl text-white text-lg focus:border-blue-500 focus:outline-none"
+            >
+              <option value="">Choose an event...</option>
+              {events.map(event => (
+                <option key={event.id} value={event.id}>
+                  {event.name} - {new Date(event.date).toLocaleDateString()}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Camera Feed */}
+          <div className="mb-6">
+            <div className="relative">
+              <video
+                ref={videoRef}
+                className={`w-full h-80 object-cover rounded-xl border-4 ${
+                  isInitialized ? 'border-green-500' : 'border-gray-600'
+                }`}
+                autoPlay
+                playsInline
+                muted
+                webkit-playsinline="true"
+                x5-playsinline="true"
+                x5-video-player-type="h5"
+                x5-video-player-fullscreen="true"
+              />
+              <canvas
+                ref={canvasRef}
+                className="hidden"
+              />
+              
+              {/* Scanning Overlay */}
+              {isScanning && isInitialized && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="border-4 border-green-500 rounded-xl bg-transparent w-64 h-64"></div>
+                </div>
+              )}
+
+              {/* Scan Result Message */}
+              {scanResult ? (
+                <div className={`absolute top-4 left-4 right-4 p-4 rounded-xl text-center font-semibold text-lg shadow-lg ${
+                  scanResult.success 
+                    ? 'bg-green-600 text-white' 
+                    : scanResult.message.includes('already used')
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-red-600 text-white'
+                }`}>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    {scanResult.success ? (
+                      <CheckCircle className="w-6 h-6" />
+                    ) : scanResult.message.includes('already used') ? (
+                      <XCircle className="w-6 h-6" />
+                    ) : (
+                      <XCircle className="w-6 h-6" />
+                    )}
+                    <span className="text-xl">
+                      {scanResult.success 
+                        ? '✅ Valid Ticket' 
+                        : scanResult.message.includes('already used')
+                        ? '⚠️ Already Used'
+                        : '❌ Invalid Ticket'
+                      }
+                    </span>
+                  </div>
+                  <p className="text-base">{scanResult.message}</p>
+                </div>
+              ) : detectionMessage ? (
+                <div className="absolute top-4 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl text-center font-semibold text-lg shadow-lg">
+                  {detectionMessage}
+                </div>
+              ) : null}
+              
+              {/* Status Badge */}
+              {isInitialized && (
+                <div className="absolute top-4 right-4 bg-green-600 text-white text-sm px-3 py-1 rounded-full font-semibold">
+                  LIVE
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex gap-4 mb-6">
+            {!isScanning ? (
+              <button
+                onClick={startScanning}
+                disabled={!selectedEvent}
+                className="flex-1 flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
+              >
+                <Camera className="w-6 h-6" />
+                Start Scanning
+              </button>
+            ) : (
+              <button
+                onClick={stopScanning}
+                className="flex-1 flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
+              >
+                <XCircle className="w-6 h-6" />
+                Stop Scanning
+              </button>
+            )}
+            
+            <button
+              onClick={capturePhoto}
+              disabled={!isInitialized}
+              className="flex-1 flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
+            >
+              <Image className="w-6 h-6" />
+              Capture & Analyze
+            </button>
+          </div>
+
+
+
+          {/* Captured Image Display */}
+          {capturedImage && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3 text-white">Captured Image</h3>
+              <div className="relative">
+                <img 
+                  src={capturedImage} 
+                  alt="Captured QR code" 
+                  className="w-full h-40 object-cover rounded-xl border-2 border-gray-600"
+                />
+                <button
+                  onClick={() => setCapturedImage('')}
+                  className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Scan Results */}
+          <div className="space-y-4">
+            {/* Current Scan Result */}
+            {scanResult && (
+              <div className={`p-6 rounded-xl border-2 ${
+                scanResult.success 
+                  ? 'bg-green-900/50 border-green-500' 
+                  : scanResult.message.includes('already used')
+                  ? 'bg-yellow-900/50 border-yellow-500'
+                  : 'bg-red-900/50 border-red-500'
+              }`}>
+                <div className="flex items-center gap-3 mb-3">
+                  {scanResult.success ? (
+                    <CheckCircle className="w-6 h-6 text-green-400" />
+                  ) : scanResult.message.includes('already used') ? (
+                    <XCircle className="w-6 h-6 text-yellow-400" />
+                  ) : (
+                    <XCircle className="w-6 h-6 text-red-400" />
+                  )}
+                  <span className="text-xl font-semibold">
+                    {scanResult.success 
+                      ? 'Valid Ticket' 
+                      : scanResult.message.includes('already used')
+                      ? 'Ticket Already Used'
+                      : 'Invalid Ticket'
+                    }
+                  </span>
+                </div>
+                <p className="text-lg text-gray-200">{scanResult.message}</p>
+              </div>
+            )}
+
+            {/* Scan History */}
+            {scanHistory.length > 0 && (
+              <div className="bg-gray-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold mb-4 text-white">Recent Scans</h3>
+                <div className="space-y-3">
+                  {scanHistory.slice(1).map((result, index) => (
+                    <div key={index} className={`flex items-center gap-3 p-4 rounded-lg ${
+                      result.success 
+                        ? 'bg-green-900/30 border border-green-500/30' 
+                        : result.message.includes('already used')
+                        ? 'bg-yellow-900/30 border border-yellow-500/30'
+                        : 'bg-red-900/30 border border-red-500/30'
+                    }`}>
+                      {result.success ? (
+                        <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                      ) : result.message.includes('already used') ? (
+                        <XCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                      )}
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">
+                          {result.success 
+                            ? 'Valid' 
+                            : result.message.includes('already used')
+                            ? 'Already Used'
+                            : 'Invalid'
+                          }
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">{result.message}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Offline Queue Info */}
+          {!isOnline && (
+            <div className="mt-6 p-4 bg-yellow-900/50 border border-yellow-600 rounded-xl">
+              <p className="text-yellow-200 text-center">
+                Scans will be stored offline and synced when connection is restored.
+              </p>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex justify-center gap-4 mt-6">
+            <button
+              onClick={() => {
+                if (onNavigateToHistory) {
+                  onNavigateToHistory()
+                } else {
+                  // Fallback to URL navigation
+                  window.location.href = '/#/history'
+                }
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-medium transition-colors"
+            >
+              <History className="w-5 h-5" />
+              View History
+            </button>
+            <button
+              onClick={() => {
+                localStorage.removeItem('ambassador')
+                window.location.reload()
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 rounded-xl text-white font-medium transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              Logout
+            </button>
+          </div>
+        </>
       )}
     </div>
   )

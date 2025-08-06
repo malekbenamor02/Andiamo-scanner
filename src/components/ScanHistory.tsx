@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Search, CheckCircle, XCircle, Download, RefreshCw, ArrowLeft, Calendar, User, MapPin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { useOfflineStore } from '../hooks/useOfflineStore'
 
 interface ScanRecord {
   id: string
@@ -18,14 +17,14 @@ interface ScanRecord {
 
 interface ScanHistoryProps {
   ambassador: any
+  onNavigateBack?: () => void
 }
 
-const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
+const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador, onNavigateBack }) => {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
-  const { getUnsyncedScans, syncOfflineData } = useOfflineStore()
 
   useEffect(() => {
     loadScans()
@@ -34,70 +33,42 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
   const loadScans = async () => {
     setLoading(true)
     try {
-      // Sync offline data first
-      await syncOfflineData()
-
-      // Load online scans with better query
+      console.log('Loading scans for ambassador:', ambassador.id)
+      
+      // Load online scans with simpler query
       const { data: onlineScans, error } = await supabase
         .from('scans')
-        .select(`
-          *,
-          events(name),
-          ambassadors(full_name)
-        `)
+        .select('*')
         .eq('ambassador_id', ambassador.id)
         .order('scan_time', { ascending: false })
-        .limit(200) // Increased limit to get more scans
+        .limit(100)
 
       if (error) {
         console.error('Failed to load online scans:', error)
+        setScans([])
+        return
       }
 
-      // Load offline scans
-      const offlineScans = await getUnsyncedScans()
+      console.log('Online scans loaded:', onlineScans?.length || 0)
       
-      // Combine and format scans
+      // Format scans
       const formattedScans: ScanRecord[] = []
       
-      // Add online scans
       if (onlineScans && onlineScans.length > 0) {
-        console.log('Loaded online scans:', onlineScans.length)
         onlineScans.forEach(scan => {
           formattedScans.push({
             ...scan,
-            event_name: scan.events?.name || 'Unknown Event',
-            ambassador_name: scan.ambassadors?.full_name || ambassador.full_name
-          })
-        })
-      } else {
-        console.log('No online scans found')
-      }
-      
-      // Add offline scans
-      if (offlineScans && offlineScans.length > 0) {
-        console.log('Loaded offline scans:', offlineScans.length)
-        offlineScans.forEach(scan => {
-          formattedScans.push({
-            id: scan.id,
-            ticket_id: scan.qrCode,
-            event_id: scan.eventId,
-            ambassador_id: scan.ambassadorId,
-            device_info: scan.deviceInfo,
-            scan_location: scan.scanLocation,
-            scan_time: new Date(scan.timestamp).toISOString(),
-            scan_result: 'pending',
-            event_name: 'Offline Event',
+            event_name: 'Event', // Simplified for now
             ambassador_name: ambassador.full_name
           })
         })
-      } else {
-        console.log('No offline scans found')
       }
-
+      
       console.log('Total formatted scans:', formattedScans.length)
       setScans(formattedScans)
     } catch (error) {
       console.error('Failed to load scans:', error)
+      setScans([])
     } finally {
       setLoading(false)
     }
@@ -211,7 +182,14 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <button
-            onClick={() => window.history.back()}
+            onClick={() => {
+              if (onNavigateBack) {
+                onNavigateBack()
+              } else {
+                // Fallback to URL navigation
+                window.location.href = '/'
+              }
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
