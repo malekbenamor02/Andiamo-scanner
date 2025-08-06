@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, Image, LogOut } from 'lucide-react'
+import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, LogOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useOfflineStore } from '../hooks/useOfflineStore'
 import jsQR from 'jsqr'
@@ -262,7 +262,6 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   const [lastScannedCode, setLastScannedCode] = useState<string>('')
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
   const [detectionMessage, setDetectionMessage] = useState<string>('')
-  const [capturedImage, setCapturedImage] = useState<string>('')
 
 
   const handleScanResult = async (qrData: string) => {
@@ -490,78 +489,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     stopCamera()
   }
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return
 
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-
-    if (!ctx) return
-
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    
-    // Draw current video frame to canvas
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    
-    // Convert canvas to data URL
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8)
-    setCapturedImage(imageDataUrl)
-    
-    // Automatically analyze the captured image for QR codes
-    analyzeImageForQR(canvas)
-  }
-
-  const analyzeImageForQR = (canvas: HTMLCanvasElement) => {
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      setDetectionMessage('❌ Error: Cannot access canvas')
-      setTimeout(() => setDetectionMessage(''), 3000)
-      return
-    }
-
-    try {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      
-      // Simple QR detection with error handling
-      let code = null
-      
-      try {
-        // Try standard detection first
-        code = jsQR(imageData.data, imageData.width, imageData.height)
-      } catch (error) {
-        console.log('QR detection error in photo (standard):', error)
-      }
-      
-      // If no code found, try with different settings
-      if (!code) {
-        try {
-          code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "attemptBoth",
-          })
-        } catch (error) {
-          console.log('QR detection error in photo (inversion):', error)
-        }
-      }
-      
-      if (code && code.data) {
-        console.log('QR Code found in captured image:', code.data)
-        setDetectionMessage(`📸 QR Code detected in photo: ${code.data}`)
-        // Automatically process the QR code
-        handleScanResult(code.data)
-      } else {
-        console.log('No QR code found in captured image')
-        setDetectionMessage('📸 No QR code found in captured image')
-        setTimeout(() => setDetectionMessage(''), 3000)
-      }
-    } catch (error) {
-      console.error('Photo analysis error:', error)
-      setDetectionMessage('❌ Error analyzing photo')
-      setTimeout(() => setDetectionMessage(''), 3000)
-    }
-  }
 
 
 
@@ -714,38 +642,11 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                 Stop Scanning
               </button>
             )}
-            
-            <button
-              onClick={capturePhoto}
-              disabled={!isInitialized}
-              className="flex-1 flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
-            >
-              <Image className="w-6 h-6" />
-              Capture & Analyze
-            </button>
           </div>
 
 
 
-          {/* Captured Image Display */}
-          {capturedImage && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-3 text-white">Captured Image</h3>
-              <div className="relative">
-                <img 
-                  src={capturedImage} 
-                  alt="Captured QR code" 
-                  className="w-full h-40 object-cover rounded-xl border-2 border-gray-600"
-                />
-                <button
-                  onClick={() => setCapturedImage('')}
-                  className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full text-sm"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          )}
+
 
           {/* Scan Results */}
           <div className="space-y-4">

@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Andiamo Scanner - Test Tickets</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
+    <title>Andiamo Scanner - Test Tickets (Simple)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -57,9 +56,11 @@
             align-items: center;
             justify-content: center;
         }
-        .qr-code canvas {
+        .qr-code img {
             border: 2px solid #ddd;
             border-radius: 8px;
+            max-width: 150px;
+            height: auto;
         }
         .ticket-info {
             margin-top: 15px;
@@ -126,7 +127,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-001-ANDIAMO-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-001-ANDIAMO-2024" alt="TICKET-001-ANDIAMO-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-001-ANDIAMO-2024<br>
@@ -139,7 +140,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-EVENT-2024-TICKET-002">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-EVENT-2024-TICKET-002" alt="ANDIAMO-EVENT-2024-TICKET-002">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-EVENT-2024-TICKET-002<br>
@@ -152,7 +153,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-003-ANDIAMO-FESTIVAL">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-003-ANDIAMO-FESTIVAL" alt="TICKET-003-ANDIAMO-FESTIVAL">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-003-ANDIAMO-FESTIVAL<br>
@@ -165,7 +166,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-2024-TICKET-004">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-2024-TICKET-004" alt="ANDIAMO-2024-TICKET-004">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-2024-TICKET-004<br>
@@ -178,7 +179,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-005-ANDIAMO-SPECIAL">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-005-ANDIAMO-SPECIAL" alt="TICKET-005-ANDIAMO-SPECIAL">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-005-ANDIAMO-SPECIAL<br>
@@ -191,7 +192,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-FESTIVAL-TICKET-006">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-FESTIVAL-TICKET-006" alt="ANDIAMO-FESTIVAL-TICKET-006">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-FESTIVAL-TICKET-006<br>
@@ -204,7 +205,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-007-ANDIAMO-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-007-ANDIAMO-2024" alt="TICKET-007-ANDIAMO-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-007-ANDIAMO-2024<br>
@@ -217,7 +218,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-EVENT-2024-TICKET-008">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-EVENT-2024-TICKET-008" alt="ANDIAMO-EVENT-2024-TICKET-008">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-EVENT-2024-TICKET-008<br>
@@ -230,7 +231,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-009-ANDIAMO-FESTIVAL">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-009-ANDIAMO-FESTIVAL" alt="TICKET-009-ANDIAMO-FESTIVAL">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-009-ANDIAMO-FESTIVAL<br>
@@ -243,7 +244,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-2024-TICKET-010">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-2024-TICKET-010" alt="ANDIAMO-2024-TICKET-010">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-2024-TICKET-010<br>
@@ -256,7 +257,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-011-ANDIAMO-SPECIAL">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-011-ANDIAMO-SPECIAL" alt="TICKET-011-ANDIAMO-SPECIAL">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-011-ANDIAMO-SPECIAL<br>
@@ -269,7 +270,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-FESTIVAL-TICKET-012">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-FESTIVAL-TICKET-012" alt="ANDIAMO-FESTIVAL-TICKET-012">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-FESTIVAL-TICKET-012<br>
@@ -282,7 +283,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-013-ANDIAMO-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-013-ANDIAMO-2024" alt="TICKET-013-ANDIAMO-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-013-ANDIAMO-2024<br>
@@ -295,7 +296,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-EVENT-TICKET-014">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-EVENT-TICKET-014" alt="ANDIAMO-EVENT-TICKET-014">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-EVENT-TICKET-014<br>
@@ -308,7 +309,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-TICKET-015-ANDIAMO-SPECIAL">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-015-ANDIAMO-SPECIAL" alt="TICKET-015-ANDIAMO-SPECIAL">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-015-ANDIAMO-SPECIAL<br>
@@ -321,7 +322,7 @@
         <div class="ticket-card valid">
             <div class="status-badge status-valid">✅ Valid</div>
             <div class="qr-code" id="qr-ANDIAMO-2024-TICKET-016">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-2024-TICKET-016" alt="ANDIAMO-2024-TICKET-016">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-2024-TICKET-016<br>
@@ -337,7 +338,7 @@
         <div class="ticket-card used">
             <div class="status-badge status-used">⚠️ Already Used</div>
             <div class="qr-code" id="qr-TICKET-017-ANDIAMO-USED">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-017-ANDIAMO-USED" alt="TICKET-017-ANDIAMO-USED">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-017-ANDIAMO-USED<br>
@@ -350,7 +351,7 @@
         <div class="ticket-card used">
             <div class="status-badge status-used">⚠️ Already Used</div>
             <div class="qr-code" id="qr-ANDIAMO-EVENT-2024-TICKET-018-USED">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-EVENT-2024-TICKET-018-USED" alt="ANDIAMO-EVENT-2024-TICKET-018-USED">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-EVENT-2024-TICKET-018-USED<br>
@@ -363,7 +364,7 @@
         <div class="ticket-card used">
             <div class="status-badge status-used">⚠️ Already Used</div>
             <div class="qr-code" id="qr-TICKET-019-ANDIAMO-FESTIVAL-USED">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-019-ANDIAMO-FESTIVAL-USED" alt="TICKET-019-ANDIAMO-FESTIVAL-USED">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-019-ANDIAMO-FESTIVAL-USED<br>
@@ -376,7 +377,7 @@
         <div class="ticket-card used">
             <div class="status-badge status-used">⚠️ Already Used</div>
             <div class="qr-code" id="qr-ANDIAMO-2024-TICKET-020-USED">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=ANDIAMO-2024-TICKET-020-USED" alt="ANDIAMO-2024-TICKET-020-USED">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> ANDIAMO-2024-TICKET-020-USED<br>
@@ -389,7 +390,7 @@
         <div class="ticket-card used">
             <div class="status-badge status-used">⚠️ Already Used</div>
             <div class="qr-code" id="qr-TICKET-021-ANDIAMO-SPECIAL-USED">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET-021-ANDIAMO-SPECIAL-USED" alt="TICKET-021-ANDIAMO-SPECIAL-USED">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TICKET-021-ANDIAMO-SPECIAL-USED<br>
@@ -405,7 +406,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-GUEST-001-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GUEST-001-2024" alt="GUEST-001-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> GUEST-001-2024<br>
@@ -418,7 +419,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-VIP-002-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=VIP-002-2024" alt="VIP-002-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> VIP-002-2024<br>
@@ -431,7 +432,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-REGULAR-003-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=REGULAR-003-2024" alt="REGULAR-003-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> REGULAR-003-2024<br>
@@ -444,7 +445,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-SPECIAL-004-EVENT">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SPECIAL-004-EVENT" alt="SPECIAL-004-EVENT">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> SPECIAL-004-EVENT<br>
@@ -457,7 +458,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-TEST-005-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TEST-005-2024" alt="TEST-005-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TEST-005-2024<br>
@@ -470,7 +471,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-GUEST-006-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GUEST-006-2024" alt="GUEST-006-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> GUEST-006-2024<br>
@@ -483,7 +484,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-VIP-007-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=VIP-007-2024" alt="VIP-007-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> VIP-007-2024<br>
@@ -496,7 +497,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-REGULAR-008-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=REGULAR-008-2024" alt="REGULAR-008-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> REGULAR-008-2024<br>
@@ -509,7 +510,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-SPECIAL-009-EVENT">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SPECIAL-009-EVENT" alt="SPECIAL-009-EVENT">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> SPECIAL-009-EVENT<br>
@@ -522,7 +523,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-TEST-010-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TEST-010-2024" alt="TEST-010-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> TEST-010-2024<br>
@@ -535,7 +536,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-DEMO-011-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=DEMO-011-2024" alt="DEMO-011-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> DEMO-011-2024<br>
@@ -548,7 +549,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-SAMPLE-012-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SAMPLE-012-2024" alt="SAMPLE-012-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> SAMPLE-012-2024<br>
@@ -561,7 +562,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-FAKE-013-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=FAKE-013-2024" alt="FAKE-013-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> FAKE-013-2024<br>
@@ -574,7 +575,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-DUMMY-014-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=DUMMY-014-2024" alt="DUMMY-014-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> DUMMY-014-2024<br>
@@ -587,7 +588,7 @@
         <div class="ticket-card invalid">
             <div class="status-badge status-invalid">❌ Invalid</div>
             <div class="qr-code" id="qr-INVALID-015-2024">
-                <div class="loading">Loading QR code...</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=INVALID-015-2024" alt="INVALID-015-2024">
             </div>
             <div class="ticket-info">
                 <strong>QR Code:</strong> INVALID-015-2024<br>
@@ -597,100 +598,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Wait for QRCode library to load
-        function waitForQRCode() {
-            if (typeof QRCode !== 'undefined') {
-                generateAllQRCodes();
-            } else {
-                setTimeout(waitForQRCode, 100);
-            }
-        }
-
-        // Generate QR codes for all tickets
-        function generateAllQRCodes() {
-            const tickets = [
-                // Valid tickets
-                'TICKET-001-ANDIAMO-2024',
-                'ANDIAMO-EVENT-2024-TICKET-002',
-                'TICKET-003-ANDIAMO-FESTIVAL',
-                'ANDIAMO-2024-TICKET-004',
-                'TICKET-005-ANDIAMO-SPECIAL',
-                'ANDIAMO-FESTIVAL-TICKET-006',
-                'TICKET-007-ANDIAMO-2024',
-                'ANDIAMO-EVENT-2024-TICKET-008',
-                'TICKET-009-ANDIAMO-FESTIVAL',
-                'ANDIAMO-2024-TICKET-010',
-                'TICKET-011-ANDIAMO-SPECIAL',
-                'ANDIAMO-FESTIVAL-TICKET-012',
-                'TICKET-013-ANDIAMO-2024',
-                'ANDIAMO-EVENT-TICKET-014',
-                'TICKET-015-ANDIAMO-SPECIAL',
-                'ANDIAMO-2024-TICKET-016',
-                
-                // Already used tickets
-                'TICKET-017-ANDIAMO-USED',
-                'ANDIAMO-EVENT-2024-TICKET-018-USED',
-                'TICKET-019-ANDIAMO-FESTIVAL-USED',
-                'ANDIAMO-2024-TICKET-020-USED',
-                'TICKET-021-ANDIAMO-SPECIAL-USED',
-                
-                // Invalid tickets
-                'GUEST-001-2024',
-                'VIP-002-2024',
-                'REGULAR-003-2024',
-                'SPECIAL-004-EVENT',
-                'TEST-005-2024',
-                'GUEST-006-2024',
-                'VIP-007-2024',
-                'REGULAR-008-2024',
-                'SPECIAL-009-EVENT',
-                'TEST-010-2024',
-                'DEMO-011-2024',
-                'SAMPLE-012-2024',
-                'FAKE-013-2024',
-                'DUMMY-014-2024',
-                'INVALID-015-2024'
-            ];
-
-            tickets.forEach(ticket => {
-                const elementId = `qr-${ticket}`;
-                const element = document.getElementById(elementId);
-                if (element) {
-                    try {
-                        // Clear loading message
-                        element.innerHTML = '';
-                        
-                        // Generate QR code
-                        QRCode.toCanvas(element, ticket, {
-                            width: 150,
-                            margin: 2,
-                            color: {
-                                dark: '#000000',
-                                light: '#FFFFFF'
-                            }
-                        }, function (error) {
-                            if (error) {
-                                element.innerHTML = '<div class="error">Failed to generate QR code</div>';
-                                console.error('QR Code generation failed for', ticket, error);
-                            }
-                        });
-                    } catch (error) {
-                        element.innerHTML = '<div class="error">Failed to generate QR code</div>';
-                        console.error('QR Code generation failed for', ticket, error);
-                    }
-                }
-            });
-        }
-
-        // Start generating QR codes when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            waitForQRCode();
-        });
-
-        // Fallback: try again after a delay
-        setTimeout(waitForQRCode, 1000);
-    </script>
 </body>
 </html> 
