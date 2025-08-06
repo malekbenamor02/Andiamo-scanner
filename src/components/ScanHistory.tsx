@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Search, CheckCircle, XCircle, Download, RefreshCw } from 'lucide-react'
+import { Search, CheckCircle, XCircle, Download, RefreshCw, ArrowLeft, Calendar, User, MapPin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useOfflineStore } from '../hooks/useOfflineStore'
 
@@ -25,46 +25,18 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
-  const [filterEvent, setFilterEvent] = useState('all')
-  const [events, setEvents] = useState<any[]>([])
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const { getUnsyncedScans } = useOfflineStore()
+  const { getUnsyncedScans, syncOfflineData } = useOfflineStore()
 
   useEffect(() => {
     loadScans()
-    loadEvents()
-    
-    // Check online status
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-    
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
   }, [])
-
-  const loadEvents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('id, name')
-        .order('date', { ascending: false })
-      
-      if (!error && data) {
-        setEvents(data)
-      }
-    } catch (error) {
-      console.error('Failed to load events:', error)
-    }
-  }
 
   const loadScans = async () => {
     setLoading(true)
     try {
+      // Sync offline data first
+      await syncOfflineData()
+
       // Load online scans
       const { data: onlineScans, error } = await supabase
         .from('scans')
@@ -124,21 +96,22 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
 
   const filteredScans = scans.filter(scan => {
     const matchesSearch = scan.ticket_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         scan.event_name?.toLowerCase().includes(searchTerm.toLowerCase())
+                         scan.event_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         scan.scan_result.toLowerCase().includes(searchTerm.toLowerCase())
     
     const matchesStatus = filterStatus === 'all' || 
                          (filterStatus === 'valid' && scan.scan_result === 'valid') ||
                          (filterStatus === 'invalid' && scan.scan_result === 'invalid') ||
+                         (filterStatus === 'used' && scan.scan_result === 'already_used') ||
                          (filterStatus === 'pending' && scan.scan_result === 'pending')
-    
-    const matchesEvent = filterEvent === 'all' || scan.event_id === filterEvent
-    
-    return matchesSearch && matchesStatus && matchesEvent
+
+    return matchesSearch && matchesStatus
   })
 
-  const exportScans = () => {
+  const exportToCSV = () => {
+    const headers = ['Ticket ID', 'Event', 'Status', 'Scan Time', 'Location', 'Device Info']
     const csvContent = [
-      ['Ticket ID', 'Event', 'Status', 'Scan Time', 'Location', 'Device Info'].join(','),
+      headers.join(','),
       ...filteredScans.map(scan => [
         scan.ticket_id,
         scan.event_name || 'Unknown',
@@ -158,181 +131,160 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
     window.URL.revokeObjectURL(url)
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'valid':
-        return <CheckCircle className="w-4 h-4 text-green-400" />
-      case 'invalid':
-        return <XCircle className="w-4 h-4 text-red-400" />
-      case 'pending':
-        return <RefreshCw className="w-4 h-4 text-yellow-400" />
-      default:
-        return <XCircle className="w-4 h-4 text-gray-400" />
+      case 'valid': return 'text-green-400 bg-green-900/30'
+      case 'invalid': return 'text-red-400 bg-red-900/30'
+      case 'already_used': return 'text-yellow-400 bg-yellow-900/30'
+      case 'pending': return 'text-blue-400 bg-blue-900/30'
+      default: return 'text-gray-400 bg-gray-900/30'
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'valid':
-        return 'bg-green-900/50 border-green-500'
-      case 'invalid':
-        return 'bg-red-900/50 border-red-500'
-      case 'pending':
-        return 'bg-yellow-900/50 border-yellow-500'
-      default:
-        return 'bg-gray-900/50 border-gray-500'
+      case 'valid': return <CheckCircle className="w-4 h-4" />
+      case 'invalid': case 'already_used': return <XCircle className="w-4 h-4" />
+      case 'pending': return <RefreshCw className="w-4 h-4" />
+      default: return <XCircle className="w-4 h-4" />
     }
   }
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-900 text-white p-4">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">Scan History</h1>
-        <p className="text-gray-400">View all your past scans and results</p>
-        
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mt-4">
-          <div className="bg-gray-800 p-3 rounded-lg">
-            <div className="text-2xl font-bold text-green-400">
-              {scans.filter(s => s.scan_result === 'valid').length}
-            </div>
-            <div className="text-sm text-gray-400">Valid Scans</div>
-          </div>
-          <div className="bg-gray-800 p-3 rounded-lg">
-            <div className="text-2xl font-bold text-red-400">
-              {scans.filter(s => s.scan_result === 'invalid').length}
-            </div>
-            <div className="text-sm text-gray-400">Invalid Scans</div>
-          </div>
-          <div className="bg-gray-800 p-3 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-400">
-              {scans.filter(s => s.scan_result === 'pending').length}
-            </div>
-            <div className="text-sm text-gray-400">Pending Sync</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="mb-6 space-y-4">
-        <div className="flex flex-wrap gap-4">
-          {/* Search */}
-          <div className="flex-1 min-w-64">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by ticket ID or event..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400"
-              />
-            </div>
-          </div>
-
-          {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-          >
-            <option value="all">All Status</option>
-            <option value="valid">Valid</option>
-            <option value="invalid">Invalid</option>
-            <option value="pending">Pending</option>
-          </select>
-
-          {/* Event Filter */}
-          <select
-            value={filterEvent}
-            onChange={(e) => setFilterEvent(e.target.value)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-          >
-            <option value="all">All Events</option>
-            {events.map(event => (
-              <option key={event.id} value={event.id}>
-                {event.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Export Button */}
+        <div className="flex items-center justify-between mb-4">
           <button
-            onClick={exportScans}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white"
+            onClick={() => window.history.back()}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
           >
-            <Download className="w-4 h-4" />
-            Export CSV
+            <ArrowLeft className="w-4 h-4" />
+            Back
           </button>
-
-          {/* Refresh Button */}
+          <h1 className="text-2xl font-bold">Scan History</h1>
           <button
             onClick={loadScans}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-white"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
         </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gray-800 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-white">{scans.length}</div>
+            <div className="text-sm text-gray-400">Total Scans</div>
+          </div>
+          <div className="bg-green-900/30 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-green-400">
+              {scans.filter(s => s.scan_result === 'valid').length}
+            </div>
+            <div className="text-sm text-green-300">Valid</div>
+          </div>
+          <div className="bg-red-900/30 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-red-400">
+              {scans.filter(s => s.scan_result === 'invalid').length}
+            </div>
+            <div className="text-sm text-red-300">Invalid</div>
+          </div>
+          <div className="bg-yellow-900/30 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-yellow-400">
+              {scans.filter(s => s.scan_result === 'already_used').length}
+            </div>
+            <div className="text-sm text-yellow-300">Used</div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search by ticket ID, event, or status..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">All Status</option>
+            <option value="valid">Valid</option>
+            <option value="invalid">Invalid</option>
+            <option value="used">Already Used</option>
+            <option value="pending">Pending</option>
+          </select>
+          <button
+            onClick={exportToCSV}
+            className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 rounded-xl transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
-      {/* Scans List */}
-      <div className="space-y-3">
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-400">Loading scans...</p>
-          </div>
-        ) : filteredScans.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-400">No scans found</p>
-          </div>
-        ) : (
-          filteredScans.map(scan => (
-            <div
-              key={scan.id}
-              className={`p-4 rounded-lg border ${getStatusColor(scan.scan_result)}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(scan.scan_result)}
-                  <div>
-                    <div className="font-medium text-white">
-                      Ticket: {scan.ticket_id}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      Event: {scan.event_name || 'Unknown Event'}
-                    </div>
+      {/* Scan List */}
+      {loading ? (
+        <div className="text-center py-8">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-400">Loading scan history...</p>
+        </div>
+      ) : filteredScans.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-400 text-lg">No scans found</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredScans.map((scan) => (
+            <div key={scan.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    {getStatusIcon(scan.scan_result)}
+                    <span className="font-semibold text-lg">Ticket: {scan.ticket_id}</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(scan.scan_result)}`}>
+                      {scan.scan_result.replace('_', ' ').toUpperCase()}
+                    </span>
                   </div>
-                </div>
-                
-                <div className="text-right">
-                  <div className="text-sm text-gray-400">
-                    {new Date(scan.scan_time).toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {scan.scan_location}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      <span>{new Date(scan.scan_time).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      <span>{scan.ambassador_name || 'Unknown'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      <span>{scan.scan_location}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Event:</span>
+                      <span>{scan.event_name || 'Unknown'}</span>
+                    </div>
                   </div>
                 </div>
               </div>
               
-              {scan.scan_result === 'pending' && (
-                <div className="mt-2 text-xs text-yellow-400">
-                  ⚠️ This scan is stored offline and will sync when online
+              {scan.device_info && (
+                <div className="text-xs text-gray-400 mt-3 p-3 bg-gray-700 rounded-lg">
+                  <strong>Device:</strong> {scan.device_info}
                 </div>
               )}
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Offline Notice */}
-      {!isOnline && (
-        <div className="mt-4 p-3 bg-yellow-900 border border-yellow-600 rounded-lg">
-          <p className="text-sm text-yellow-200">
-            You're currently offline. Some scans may not be synced yet.
-          </p>
+          ))}
         </div>
       )}
     </div>

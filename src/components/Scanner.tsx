@@ -89,14 +89,17 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         throw new Error('Camera access requires HTTPS or local network. Please use HTTPS or connect to localhost/local network.')
       }
 
-      // iOS-compatible camera constraints
+      // iOS-compatible camera constraints with optimized settings for QR scanning
       const constraints = {
         video: {
           facingMode: 'environment', // Use back camera
           width: { min: 640, ideal: 1280, max: 1920 },
           height: { min: 480, ideal: 720, max: 1080 },
           aspectRatio: { ideal: 1.7777777778 }, // 16:9
-          frameRate: { ideal: 30 }
+          frameRate: { min: 15, ideal: 30, max: 60 }, // Optimized for QR scanning
+          focusMode: 'continuous', // Auto-focus for better QR detection
+          exposureMode: 'continuous', // Auto-exposure
+          whiteBalanceMode: 'continuous' // Auto white balance
         }
       }
 
@@ -193,10 +196,36 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     // Get image data for QR detection
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     
-    // Use jsQR for QR detection
-    const code = jsQR(imageData.data, imageData.width, imageData.height)
+    // Try multiple detection methods for better accuracy
+    let code = null
     
-    if (code) {
+    try {
+      // Method 1: Standard detection
+      code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      })
+      
+      // Method 2: Try with inversion if first attempt fails
+      if (!code) {
+        code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "attemptBoth",
+        })
+      }
+      
+      // Method 3: Try with different settings if still no result
+      if (!code) {
+        code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "onlyInvert",
+        })
+      }
+    } catch (error) {
+      console.error('QR detection error:', error)
+      // Continue scanning even if there's an error
+      animationRef.current = requestAnimationFrame(detectQR)
+      return
+    }
+    
+    if (code && code.data) {
       console.log('QR Code detected:', code.data)
       setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
       // Automatically analyze the QR code
@@ -204,16 +233,20 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
       return
     }
 
-    // No QR code detected - show message
-    if (!detectionMessage || !detectionMessage.includes('No QR code')) {
+    // No QR code detected - show message less frequently to avoid spam
+    const shouldShowMessage = !detectionMessage || 
+                            (!detectionMessage.includes('No QR code') && 
+                             !detectionMessage.includes('QR Code Detected'))
+    
+    if (shouldShowMessage) {
       setDetectionMessage('🔍 Scanning... No QR code detected')
-      // Clear the "no QR code" message after 3 seconds
+      // Clear the "no QR code" message after 2 seconds
       setTimeout(() => {
         setDetectionMessage(prev => prev === '🔍 Scanning... No QR code detected' ? '' : prev)
-      }, 3000)
+      }, 2000)
     }
 
-    // Continue scanning
+    // Continue scanning with optimized frame rate
     animationRef.current = requestAnimationFrame(detectQR)
   }
 
@@ -444,10 +477,36 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     
-    // Use jsQR to detect QR codes in the image
-    const code = jsQR(imageData.data, imageData.width, imageData.height)
+    // Try multiple detection methods for better accuracy
+    let code = null
     
-    if (code) {
+    try {
+      // Method 1: Standard detection
+      code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      })
+      
+      // Method 2: Try with inversion if first attempt fails
+      if (!code) {
+        code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "attemptBoth",
+        })
+      }
+      
+      // Method 3: Try with different settings if still no result
+      if (!code) {
+        code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "onlyInvert",
+        })
+      }
+    } catch (error) {
+      console.error('QR detection error in photo analysis:', error)
+      setDetectionMessage('❌ Error analyzing photo')
+      setTimeout(() => setDetectionMessage(''), 3000)
+      return
+    }
+    
+    if (code && code.data) {
       console.log('QR Code found in captured image:', code.data)
       setDetectionMessage(`📸 QR Code detected in photo: ${code.data}`)
       // Automatically process the QR code
@@ -484,33 +543,36 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
   }
 
   return (
-    <div className="p-4 max-w-md mx-auto">
+    <div className="min-h-screen bg-gray-900 text-white p-4">
       {/* Header */}
       <div className="mb-6">
         <div className="text-center mb-4">
-          <h1 className="text-2xl font-bold mb-2">QR Scanner</h1>
-          <p className="text-gray-400">Welcome, {ambassador?.full_name}</p>
+          <h1 className="text-3xl font-bold mb-2 text-white">QR Scanner</h1>
+          <p className="text-gray-300 text-lg">Welcome, {ambassador?.full_name}</p>
           
           {/* Online/Offline Status */}
-          <div className="flex items-center justify-center mt-2">
+          <div className="flex items-center justify-center mt-3">
             {isOnline ? (
-              <Wifi className="w-4 h-4 text-green-500 mr-2" />
+              <div className="flex items-center bg-green-900/50 px-3 py-1 rounded-full">
+                <Wifi className="w-4 h-4 text-green-400 mr-2" />
+                <span className="text-sm text-green-300">Online</span>
+              </div>
             ) : (
-              <WifiOff className="w-4 h-4 text-red-500 mr-2" />
+              <div className="flex items-center bg-red-900/50 px-3 py-1 rounded-full">
+                <WifiOff className="w-4 h-4 text-red-400 mr-2" />
+                <span className="text-sm text-red-300">Offline Mode</span>
+              </div>
             )}
-            <span className="text-sm">
-              {isOnline ? 'Online' : 'Offline Mode'}
-            </span>
           </div>
         </div>
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-center gap-4">
+        {/* Navigation */}
+        <div className="flex justify-center">
           <button
             onClick={() => window.location.href = '/history'}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-medium transition-colors"
           >
-            <History className="w-4 h-4" />
+            <History className="w-5 h-5" />
             View History
           </button>
         </div>
@@ -518,11 +580,11 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
 
       {/* Event Selection */}
       <div className="mb-6">
-        <label className="block text-sm font-medium mb-2">Select Event</label>
+        <label className="block text-lg font-semibold mb-3 text-white">Select Event</label>
         <select
           value={selectedEvent}
           onChange={(e) => setSelectedEvent(e.target.value)}
-          className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          className="w-full p-4 bg-gray-800 border-2 border-gray-700 rounded-xl text-white text-lg focus:border-blue-500 focus:outline-none"
         >
           <option value="">Choose an event...</option>
           {events.map(event => (
@@ -538,7 +600,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         <div className="relative">
           <video
             ref={videoRef}
-            className={`w-full h-64 object-cover rounded-lg border-2 ${
+            className={`w-full h-80 object-cover rounded-xl border-4 ${
               isInitialized ? 'border-green-500' : 'border-gray-600'
             }`}
             autoPlay
@@ -557,20 +619,20 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
           {/* Scanning Overlay */}
           {isScanning && isInitialized && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="border-2 border-green-500 rounded-lg bg-transparent w-48 h-48"></div>
+              <div className="border-4 border-green-500 rounded-xl bg-transparent w-64 h-64"></div>
             </div>
           )}
 
           {/* Detection Message */}
           {detectionMessage && (
-            <div className="absolute top-4 left-4 right-4 bg-green-600 text-white p-3 rounded-lg text-center font-medium">
+            <div className="absolute top-4 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl text-center font-semibold text-lg shadow-lg">
               {detectionMessage}
             </div>
           )}
           
           {/* Status Badge */}
           {isInitialized && (
-            <div className="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded-full">
+            <div className="absolute top-4 right-4 bg-green-600 text-white text-sm px-3 py-1 rounded-full font-semibold">
               LIVE
             </div>
           )}
@@ -583,17 +645,17 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
           <button
             onClick={startScanning}
             disabled={!selectedEvent}
-            className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-4 py-3 rounded-lg font-medium"
+            className="flex-1 flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
           >
-            <Camera className="w-5 h-5" />
+            <Camera className="w-6 h-6" />
             Start Scanning
           </button>
         ) : (
           <button
             onClick={stopScanning}
-            className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg font-medium"
+            className="flex-1 flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
           >
-            <XCircle className="w-5 h-5" />
+            <XCircle className="w-6 h-6" />
             Stop Scanning
           </button>
         )}
@@ -601,15 +663,15 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         <button
           onClick={capturePhoto}
           disabled={!isInitialized}
-          className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-4 py-3 rounded-lg font-medium"
+          className="flex-1 flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
         >
-          <Image className="w-5 h-5" />
+          <Image className="w-6 h-6" />
           Capture & Analyze
         </button>
       </div>
 
-      {/* File Upload (Hidden but accessible) */}
-      <div className="mb-4">
+      {/* File Upload */}
+      <div className="mb-6">
         <input
           ref={fileInputRef}
           type="file"
@@ -619,103 +681,106 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-lg text-sm"
+          className="w-full flex items-center justify-center gap-3 bg-orange-600 hover:bg-orange-700 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
         >
           📁 Upload Photo to Analyze
         </button>
       </div>
 
-          {/* Captured Image Display */}
-          {capturedImage && (
-            <div className="mb-4">
-              <h3 className="text-sm font-medium mb-2 text-gray-300">Captured Image</h3>
-              <div className="relative">
-                <img 
-                  src={capturedImage} 
-                  alt="Captured QR code" 
-                  className="w-full h-32 object-cover rounded-lg border border-gray-600"
-                />
-                <button
-                  onClick={() => setCapturedImage('')}
-                  className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded-full text-xs"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Scan Results */}
-          <div className="space-y-3">
-            {/* Current Scan Result */}
-            {scanResult && (
-              <div className={`p-4 rounded-lg border ${
-                scanResult.success 
-                  ? 'bg-green-900 border-green-500' 
-                  : scanResult.message.includes('already used')
-                  ? 'bg-yellow-900 border-yellow-500'
-                  : 'bg-red-900 border-red-500'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  {scanResult.success ? (
-                    <CheckCircle className="w-5 h-5 text-green-400" />
-                  ) : scanResult.message.includes('already used') ? (
-                    <XCircle className="w-5 h-5 text-yellow-400" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-400" />
-                  )}
-                  <span className="font-medium">
-                    {scanResult.success 
-                      ? 'Valid Ticket' 
-                      : scanResult.message.includes('already used')
-                      ? 'Ticket Already Used'
-                      : 'Invalid Ticket'
-                    }
-                  </span>
-                </div>
-                <p className="text-sm text-gray-300">{scanResult.message}</p>
-              </div>
-            )}
-
-            {/* Scan History */}
-            {scanHistory.length > 0 && (
-              <div className="bg-gray-800 rounded-lg p-3">
-                <h3 className="text-sm font-medium mb-2 text-gray-300">Recent Scans</h3>
-                <div className="space-y-2">
-                  {scanHistory.slice(1).map((result, index) => (
-                    <div key={index} className={`flex items-center gap-2 p-2 rounded ${
-                      result.success 
-                        ? 'bg-green-900/50' 
-                        : result.message.includes('already used')
-                        ? 'bg-yellow-900/50'
-                        : 'bg-red-900/50'
-                    }`}>
-                      {result.success ? (
-                        <CheckCircle className="w-4 h-4 text-green-400" />
-                      ) : result.message.includes('already used') ? (
-                        <XCircle className="w-4 h-4 text-yellow-400" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-red-400" />
-                      )}
-                      <span className="text-xs text-gray-300">
-                        {result.success 
-                          ? 'Valid' 
-                          : result.message.includes('already used')
-                          ? 'Already Used'
-                          : 'Invalid'
-                        } - {result.message}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+      {/* Captured Image Display */}
+      {capturedImage && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-3 text-white">Captured Image</h3>
+          <div className="relative">
+            <img 
+              src={capturedImage} 
+              alt="Captured QR code" 
+              className="w-full h-40 object-cover rounded-xl border-2 border-gray-600"
+            />
+            <button
+              onClick={() => setCapturedImage('')}
+              className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full text-sm"
+            >
+              ✕
+            </button>
           </div>
+        </div>
+      )}
+
+      {/* Scan Results */}
+      <div className="space-y-4">
+        {/* Current Scan Result */}
+        {scanResult && (
+          <div className={`p-6 rounded-xl border-2 ${
+            scanResult.success 
+              ? 'bg-green-900/50 border-green-500' 
+              : scanResult.message.includes('already used')
+              ? 'bg-yellow-900/50 border-yellow-500'
+              : 'bg-red-900/50 border-red-500'
+          }`}>
+            <div className="flex items-center gap-3 mb-3">
+              {scanResult.success ? (
+                <CheckCircle className="w-6 h-6 text-green-400" />
+              ) : scanResult.message.includes('already used') ? (
+                <XCircle className="w-6 h-6 text-yellow-400" />
+              ) : (
+                <XCircle className="w-6 h-6 text-red-400" />
+              )}
+              <span className="text-xl font-semibold">
+                {scanResult.success 
+                  ? 'Valid Ticket' 
+                  : scanResult.message.includes('already used')
+                  ? 'Ticket Already Used'
+                  : 'Invalid Ticket'
+                }
+              </span>
+            </div>
+            <p className="text-lg text-gray-200">{scanResult.message}</p>
+          </div>
+        )}
+
+        {/* Scan History */}
+        {scanHistory.length > 0 && (
+          <div className="bg-gray-800 rounded-xl p-6">
+            <h3 className="text-lg font-semibold mb-4 text-white">Recent Scans</h3>
+            <div className="space-y-3">
+              {scanHistory.slice(1).map((result, index) => (
+                <div key={index} className={`flex items-center gap-3 p-4 rounded-lg ${
+                  result.success 
+                    ? 'bg-green-900/30 border border-green-500/30' 
+                    : result.message.includes('already used')
+                    ? 'bg-yellow-900/30 border border-yellow-500/30'
+                    : 'bg-red-900/30 border border-red-500/30'
+                }`}>
+                  {result.success ? (
+                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                  ) : result.message.includes('already used') ? (
+                    <XCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">
+                      {result.success 
+                        ? 'Valid' 
+                        : result.message.includes('already used')
+                        ? 'Already Used'
+                        : 'Invalid'
+                      }
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">{result.message}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Offline Queue Info */}
       {!isOnline && (
-        <div className="mt-4 p-3 bg-yellow-900 border border-yellow-600 rounded-lg">
-          <p className="text-sm text-yellow-200">
+        <div className="mt-6 p-4 bg-yellow-900/50 border border-yellow-600 rounded-xl">
+          <p className="text-yellow-200 text-center">
             Scans will be stored offline and synced when connection is restored.
           </p>
         </div>
