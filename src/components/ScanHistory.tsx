@@ -108,7 +108,7 @@ const ScanHistory: React.FC<ScanHistoryProps> = ({ ambassador }) => {
       console.log('Testing database connection...')
       
       // Test 1: Check if we can access scans table
-      const { data: allScans, error: allScansError } = await supabase
+      const { error: allScansError } = await supabase
         .from('scans')
         .select('count')
         .limit(1)
