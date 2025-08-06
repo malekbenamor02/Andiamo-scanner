@@ -256,7 +256,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
           .from('tickets')
           .select('*')
           .eq('qr_code', qrData)
-          .eq('status', 'active')
+          .in('status', ['active', 'used'])
           .single()
 
         if (ticketError || !ticket) {
@@ -271,11 +271,11 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
               scan_time: new Date().toISOString(),
               scan_result: 'invalid'
             })
-            result = { success: false, message: 'Invalid ticket - not found in database' }
+            result = { success: false, message: '❌ Invalid ticket - not found in database' }
           } catch (error) {
             console.error('Database error:', error)
             await addScanRecord(scanData)
-            result = { success: false, message: 'Invalid ticket - stored offline' }
+            result = { success: false, message: '❌ Invalid ticket - stored offline' }
           }
         } else {
           // Ticket found - check if it's for the correct event
@@ -290,36 +290,73 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
                 scan_time: new Date().toISOString(),
                 scan_result: 'wrong_event'
               })
-              result = { success: false, message: 'Ticket is for a different event' }
+              result = { success: false, message: '❌ Ticket is for a different event' }
             } catch (error) {
               console.error('Database error:', error)
               await addScanRecord(scanData)
-              result = { success: false, message: 'Wrong event ticket - stored offline' }
+              result = { success: false, message: '❌ Wrong event ticket - stored offline' }
             }
           } else {
-            // Valid ticket for correct event
-            try {
-              await supabase.from('scans').insert({
-                ticket_id: qrData,
-                event_id: selectedEvent,
-                ambassador_id: ambassador.id,
-                device_info: deviceInfo,
-                scan_location: scanLocation,
-                scan_time: new Date().toISOString(),
-                scan_result: 'valid'
-              })
-              result = { 
-                success: true, 
-                message: `Valid ticket scanned! Customer: ${ticket.customer_name}, Type: ${ticket.ticket_type}`,
-                ticket: ticket
+            // Check if ticket is already used
+            if (ticket.status === 'used') {
+              // Ticket already used
+              try {
+                await supabase.from('scans').insert({
+                  ticket_id: qrData,
+                  event_id: selectedEvent,
+                  ambassador_id: ambassador.id,
+                  device_info: deviceInfo,
+                  scan_location: scanLocation,
+                  scan_time: new Date().toISOString(),
+                  scan_result: 'already_used'
+                })
+                result = { 
+                  success: false, 
+                  message: `⚠️ Ticket already used! Customer: ${ticket.customer_name}, Type: ${ticket.ticket_type}`,
+                  ticket: ticket
+                }
+              } catch (error) {
+                console.error('Database error:', error)
+                await addScanRecord(scanData)
+                result = { 
+                  success: false, 
+                  message: `⚠️ Ticket already used - stored offline. Customer: ${ticket.customer_name}`,
+                  ticket: ticket
+                }
               }
-            } catch (error) {
-              console.error('Database error:', error)
-              await addScanRecord(scanData)
-              result = { 
-                success: true, 
-                message: `Valid ticket - stored offline. Customer: ${ticket.customer_name}`,
-                ticket: ticket
+            } else {
+              // Valid ticket, first time scanning
+              try {
+                // Record the scan
+                await supabase.from('scans').insert({
+                  ticket_id: qrData,
+                  event_id: selectedEvent,
+                  ambassador_id: ambassador.id,
+                  device_info: deviceInfo,
+                  scan_location: scanLocation,
+                  scan_time: new Date().toISOString(),
+                  scan_result: 'valid'
+                })
+
+                // Mark ticket as used in tickets table
+                await supabase
+                  .from('tickets')
+                  .update({ status: 'used' })
+                  .eq('qr_code', qrData)
+
+                result = { 
+                  success: true, 
+                  message: `✅ Valid ticket scanned! Customer: ${ticket.customer_name}, Type: ${ticket.ticket_type}`,
+                  ticket: ticket
+                }
+              } catch (error) {
+                console.error('Database error:', error)
+                await addScanRecord(scanData)
+                result = { 
+                  success: true, 
+                  message: `✅ Valid ticket - stored offline. Customer: ${ticket.customer_name}`,
+                  ticket: ticket
+                }
               }
             }
           }
@@ -327,7 +364,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
       } catch (error) {
         console.error('Database error:', error)
         await addScanRecord(scanData)
-        result = { success: false, message: 'Database error - stored offline' }
+        result = { success: false, message: '❌ Database error - stored offline' }
       }
     } else {
       // Offline mode - use simple validation as fallback
@@ -336,7 +373,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
       const isValidTicket = qrDataUpper.includes('TICKET') || qrDataUpper.includes('ANDIAMO')
       result = { 
         success: isValidTicket, 
-        message: isValidTicket ? 'Valid ticket - stored offline' : 'Invalid ticket - stored offline' 
+        message: isValidTicket ? '✅ Valid ticket - stored offline' : '❌ Invalid ticket - stored offline' 
       }
     }
 
@@ -605,16 +642,25 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
               <div className={`p-4 rounded-lg border ${
                 scanResult.success 
                   ? 'bg-green-900 border-green-500' 
+                  : scanResult.message.includes('already used')
+                  ? 'bg-yellow-900 border-yellow-500'
                   : 'bg-red-900 border-red-500'
               }`}>
                 <div className="flex items-center gap-2 mb-2">
                   {scanResult.success ? (
                     <CheckCircle className="w-5 h-5 text-green-400" />
+                  ) : scanResult.message.includes('already used') ? (
+                    <XCircle className="w-5 h-5 text-yellow-400" />
                   ) : (
                     <XCircle className="w-5 h-5 text-red-400" />
                   )}
                   <span className="font-medium">
-                    {scanResult.success ? 'Valid Ticket' : 'Invalid Ticket'}
+                    {scanResult.success 
+                      ? 'Valid Ticket' 
+                      : scanResult.message.includes('already used')
+                      ? 'Ticket Already Used'
+                      : 'Invalid Ticket'
+                    }
                   </span>
                 </div>
                 <p className="text-sm text-gray-300">{scanResult.message}</p>
@@ -628,15 +674,26 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
                 <div className="space-y-2">
                   {scanHistory.slice(1).map((result, index) => (
                     <div key={index} className={`flex items-center gap-2 p-2 rounded ${
-                      result.success ? 'bg-green-900/50' : 'bg-red-900/50'
+                      result.success 
+                        ? 'bg-green-900/50' 
+                        : result.message.includes('already used')
+                        ? 'bg-yellow-900/50'
+                        : 'bg-red-900/50'
                     }`}>
                       {result.success ? (
                         <CheckCircle className="w-4 h-4 text-green-400" />
+                      ) : result.message.includes('already used') ? (
+                        <XCircle className="w-4 h-4 text-yellow-400" />
                       ) : (
                         <XCircle className="w-4 h-4 text-red-400" />
                       )}
                       <span className="text-xs text-gray-300">
-                        {result.success ? 'Valid' : 'Invalid'} - {result.message}
+                        {result.success 
+                          ? 'Valid' 
+                          : result.message.includes('already used')
+                          ? 'Already Used'
+                          : 'Invalid'
+                        } - {result.message}
                       </span>
                     </div>
                   ))}
