@@ -328,7 +328,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
               // Valid ticket, first time scanning
               try {
                 // Record the scan
-                await supabase.from('scans').insert({
+                const { error: scanError } = await supabase.from('scans').insert({
                   ticket_id: qrData,
                   event_id: selectedEvent,
                   ambassador_id: ambassador.id,
@@ -338,11 +338,21 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
                   scan_result: 'valid'
                 })
 
+                if (scanError) {
+                  console.error('Error recording scan:', scanError)
+                }
+
                 // Mark ticket as used in tickets table
-                await supabase
+                const { error: updateError } = await supabase
                   .from('tickets')
                   .update({ status: 'used' })
                   .eq('qr_code', qrData)
+
+                if (updateError) {
+                  console.error('Error updating ticket status:', updateError)
+                } else {
+                  console.log('✅ Ticket status updated to "used":', qrData)
+                }
 
                 result = { 
                   success: true, 
