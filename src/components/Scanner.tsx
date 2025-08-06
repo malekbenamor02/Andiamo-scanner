@@ -34,6 +34,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const animationRef = useRef<number | null>(null)
+  const isScanningRef = useRef(false)
   
   const { addScanRecord } = useOfflineStore()
 
@@ -132,8 +133,12 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
         // Wait for video to be ready
         await new Promise((resolve) => {
           if (videoRef.current) {
+            console.log('Setting up video event listeners...')
+            
             videoRef.current.onloadedmetadata = () => {
+              console.log('Video metadata loaded, attempting to play...')
               videoRef.current?.play().then(() => {
+                console.log('Video started playing successfully')
                 setIsInitialized(true)
                 resolve(true)
               }).catch((error) => {
@@ -141,6 +146,19 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                 resolve(false)
               })
             }
+            
+            // Add a timeout fallback in case onloadedmetadata doesn't fire
+            setTimeout(() => {
+              console.log('Timeout fallback: checking if video is ready...')
+              if (videoRef.current && videoRef.current.videoWidth > 0) {
+                console.log('Video appears ready via timeout fallback')
+                setIsInitialized(true)
+                resolve(true)
+              } else {
+                console.log('Video still not ready after timeout')
+                resolve(false)
+              }
+            }, 3000) // 3 second timeout
           }
         })
       }
@@ -183,19 +201,41 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   }
 
   const detectQR = () => {
-    if (!videoRef.current || !canvasRef.current || !isScanning) return
+    // Add a simple counter to track if scanning is running
+    if (!(window as any).scanCount) (window as any).scanCount = 0
+    ;(window as any).scanCount++
+    
+    // Log every 50th scan to avoid spam
+    if ((window as any).scanCount % 50 === 0) {
+      console.log(`Scan attempt #${(window as any).scanCount}, isScanning:`, isScanning)
+    }
+    
+    if (!videoRef.current || !canvasRef.current || !isScanningRef.current) {
+      console.log('Scanning stopped or video not ready')
+      console.log('videoRef.current:', !!videoRef.current)
+      console.log('canvasRef.current:', !!canvasRef.current)
+      console.log('isScanningRef.current:', isScanningRef.current)
+      return
+    }
 
     const video = videoRef.current
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
 
-    if (!ctx) return
+    if (!ctx) {
+      console.log('Canvas context not available')
+      return
+    }
 
     // Check if video is ready
+    console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight)
     if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log('Video not ready yet, retrying...')
       animationRef.current = requestAnimationFrame(detectQR)
       return
     }
+
+    console.log('Video ready, scanning for QR codes...')
 
     try {
       // Set canvas dimensions
@@ -214,6 +254,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       try {
         // Try standard detection first
         code = jsQR(imageData.data, imageData.width, imageData.height)
+        console.log('Standard QR detection attempt completed')
       } catch (error) {
         console.log('QR detection error (standard):', error)
       }
@@ -224,6 +265,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
           code = jsQR(imageData.data, imageData.width, imageData.height, {
             inversionAttempts: "attemptBoth",
           })
+          console.log('Inversion QR detection attempt completed')
         } catch (error) {
           console.log('QR detection error (inversion):', error)
         }
@@ -234,20 +276,21 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
         setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
         // Automatically analyze the QR code
         handleScanResult(code.data)
-        return
+        // Don't return here - continue scanning for next QR code
+      } else {
+        // Only log occasionally to avoid spam
+        if ((window as any).scanCount % 50 === 0) {
+          console.log('No QR code found in this frame')
+        }
       }
 
-      // No QR code detected - show message less frequently
-      const shouldShowMessage = !detectionMessage || 
-                              (!detectionMessage.includes('No QR code') && 
-                               !detectionMessage.includes('QR Code Detected'))
-      
-      if (shouldShowMessage) {
+      // No QR code detected - show message much less frequently
+      if (!detectionMessage && (window as any).scanCount % 100 === 0) {
         setDetectionMessage('🔍 Scanning... No QR code detected')
-        // Clear the "no QR code" message after 2 seconds
+        // Clear the "no QR code" message after 3 seconds
         setTimeout(() => {
           setDetectionMessage(prev => prev === '🔍 Scanning... No QR code detected' ? '' : prev)
-        }, 2000)
+        }, 3000)
       }
 
     } catch (error) {
@@ -255,8 +298,18 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       // Continue scanning even if there's an error
     }
 
-    // Continue scanning
-    animationRef.current = requestAnimationFrame(detectQR)
+    // Continue scanning with a small delay for better performance
+    setTimeout(() => {
+      if (isScanningRef.current) {
+        // Only log occasionally to avoid spam
+        if ((window as any).scanCount % 100 === 0) {
+          console.log('Continuing scan loop...')
+        }
+        animationRef.current = requestAnimationFrame(detectQR)
+      } else {
+        console.log('Scanning stopped, not continuing loop')
+      }
+    }, 200) // 200ms delay between scans for better performance
   }
 
   const [lastScannedCode, setLastScannedCode] = useState<string>('')
@@ -479,13 +532,23 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       return
     }
 
+    console.log('Starting scanning...')
     setIsScanning(true)
+    isScanningRef.current = true
     await initializeCamera()
-    detectQR()
+    console.log('Camera initialized, waiting for video to be ready...')
+    
+    // Wait a bit for video to be fully ready
+    setTimeout(() => {
+      console.log('Starting QR detection after delay...')
+      console.log('isScanningRef.current:', isScanningRef.current)
+      detectQR()
+    }, 1000) // Wait 1 second for video to be ready
   }
 
   const stopScanning = () => {
     setIsScanning(false)
+    isScanningRef.current = false
     stopCamera()
   }
 
