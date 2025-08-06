@@ -193,20 +193,24 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     // Get image data for QR detection
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     
-    // Debug: Log canvas dimensions
-    if (debugMode) {
-      console.log('Canvas dimensions:', canvas.width, 'x', canvas.height)
-      console.log('Image data size:', imageData.data.length)
-    }
-    
     // Use jsQR for QR detection
     const code = jsQR(imageData.data, imageData.width, imageData.height)
     
     if (code) {
       console.log('QR Code detected:', code.data)
       setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
+      // Automatically analyze the QR code
       handleScanResult(code.data)
       return
+    }
+
+    // No QR code detected - show message
+    if (!detectionMessage || !detectionMessage.includes('No QR code')) {
+      setDetectionMessage('🔍 Scanning... No QR code detected')
+      // Clear the "no QR code" message after 3 seconds
+      setTimeout(() => {
+        setDetectionMessage(prev => prev === '🔍 Scanning... No QR code detected' ? '' : prev)
+      }, 3000)
     }
 
     // Continue scanning
@@ -216,7 +220,6 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
   const [lastScannedCode, setLastScannedCode] = useState<string>('')
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
   const [detectionMessage, setDetectionMessage] = useState<string>('')
-  const [debugMode, setDebugMode] = useState(false)
   const [capturedImage, setCapturedImage] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -247,62 +250,87 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     let result: ScanResult
 
     if (isOnline) {
-      // Simple validation logic - you can customize this (case insensitive)
-      const qrDataUpper = qrData.toUpperCase()
-      const isValidTicket = qrDataUpper.includes('TICKET') || qrDataUpper.includes('ANDIAMO')
-      
-      // Debug: Log the QR data and validation result
-      console.log('QR Data:', qrData)
-      console.log('QR Data (Upper):', qrDataUpper)
-      console.log('Contains TICKET:', qrDataUpper.includes('TICKET'))
-      console.log('Contains ANDIAMO:', qrDataUpper.includes('ANDIAMO'))
-      console.log('Is Valid:', isValidTicket)
-      
-      if (isValidTicket) {
-        try {
-          // Record valid scan in database
-          const { error } = await supabase.from('scans').insert({
-            ticket_id: qrData,
-            event_id: selectedEvent,
-            ambassador_id: ambassador.id,
-            device_info: deviceInfo,
-            scan_location: scanLocation,
-            scan_time: new Date().toISOString(),
-            scan_result: 'valid'
-          })
+      try {
+        // Check if ticket exists in tickets table
+        const { data: ticket, error: ticketError } = await supabase
+          .from('tickets')
+          .select('*')
+          .eq('qr_code', qrData)
+          .eq('status', 'active')
+          .single()
 
-          if (error) {
+        if (ticketError || !ticket) {
+          // Ticket not found in database
+          try {
+            await supabase.from('scans').insert({
+              ticket_id: qrData,
+              event_id: selectedEvent,
+              ambassador_id: ambassador.id,
+              device_info: deviceInfo,
+              scan_location: scanLocation,
+              scan_time: new Date().toISOString(),
+              scan_result: 'invalid'
+            })
+            result = { success: false, message: 'Invalid ticket - not found in database' }
+          } catch (error) {
             console.error('Database error:', error)
-            result = { success: false, message: 'Database error - stored offline' }
-          } else {
-            result = { success: true, message: 'Valid ticket scanned successfully!' }
+            await addScanRecord(scanData)
+            result = { success: false, message: 'Invalid ticket - stored offline' }
           }
-        } catch (error) {
-          console.error('Database error:', error)
-          await addScanRecord(scanData)
-          result = { success: false, message: 'Database error - stored offline' }
+        } else {
+          // Ticket found - check if it's for the correct event
+          if (ticket.event_id !== selectedEvent) {
+            try {
+              await supabase.from('scans').insert({
+                ticket_id: qrData,
+                event_id: selectedEvent,
+                ambassador_id: ambassador.id,
+                device_info: deviceInfo,
+                scan_location: scanLocation,
+                scan_time: new Date().toISOString(),
+                scan_result: 'wrong_event'
+              })
+              result = { success: false, message: 'Ticket is for a different event' }
+            } catch (error) {
+              console.error('Database error:', error)
+              await addScanRecord(scanData)
+              result = { success: false, message: 'Wrong event ticket - stored offline' }
+            }
+          } else {
+            // Valid ticket for correct event
+            try {
+              await supabase.from('scans').insert({
+                ticket_id: qrData,
+                event_id: selectedEvent,
+                ambassador_id: ambassador.id,
+                device_info: deviceInfo,
+                scan_location: scanLocation,
+                scan_time: new Date().toISOString(),
+                scan_result: 'valid'
+              })
+              result = { 
+                success: true, 
+                message: `Valid ticket scanned! Customer: ${ticket.customer_name}, Type: ${ticket.ticket_type}`,
+                ticket: ticket
+              }
+            } catch (error) {
+              console.error('Database error:', error)
+              await addScanRecord(scanData)
+              result = { 
+                success: true, 
+                message: `Valid ticket - stored offline. Customer: ${ticket.customer_name}`,
+                ticket: ticket
+              }
+            }
+          }
         }
-      } else {
-        // Invalid ticket
-        try {
-          await supabase.from('scans').insert({
-            ticket_id: qrData,
-            event_id: selectedEvent,
-            ambassador_id: ambassador.id,
-            device_info: deviceInfo,
-            scan_location: scanLocation,
-            scan_time: new Date().toISOString(),
-            scan_result: 'invalid'
-          })
-          result = { success: false, message: 'Invalid ticket format' }
-        } catch (error) {
-          console.error('Database error:', error)
-          await addScanRecord(scanData)
-          result = { success: false, message: 'Invalid ticket - stored offline' }
-        }
+      } catch (error) {
+        console.error('Database error:', error)
+        await addScanRecord(scanData)
+        result = { success: false, message: 'Database error - stored offline' }
       }
     } else {
-      // Store offline
+      // Offline mode - use simple validation as fallback
       await addScanRecord(scanData)
       const qrDataUpper = qrData.toUpperCase()
       const isValidTicket = qrDataUpper.includes('TICKET') || qrDataUpper.includes('ANDIAMO')
@@ -359,7 +387,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8)
     setCapturedImage(imageDataUrl)
     
-    // Analyze the captured image for QR codes
+    // Automatically analyze the captured image for QR codes
     analyzeImageForQR(canvas)
   }
 
@@ -375,6 +403,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
     if (code) {
       console.log('QR Code found in captured image:', code.data)
       setDetectionMessage(`📸 QR Code detected in photo: ${code.data}`)
+      // Automatically process the QR code
       handleScanResult(code.data)
     } else {
       console.log('No QR code found in captured image')
@@ -521,66 +550,35 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador }) => {
             Stop Scanning
           </button>
         )}
-      </div>
-
-      {/* Photo Capture Controls */}
-      <div className="mb-4 space-y-2">
+        
         <button
           onClick={capturePhoto}
           disabled={!isInitialized}
-          className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-4 py-2 rounded-lg text-sm"
+          className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-4 py-3 rounded-lg font-medium"
         >
-          📸 Capture & Analyze Photo
-        </button>
-        
-        <div className="flex gap-2">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-lg text-sm"
-          >
-            📁 Upload Photo
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-        </div>
-      </div>
-
-      {/* Debug Controls */}
-      <div className="mb-4 space-y-2">
-        <button
-          onClick={() => handleScanResult('TICKET-001-ANDIAMO-2024')}
-          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm"
-        >
-          🧪 Test TICKET QR
-        </button>
-        <button
-          onClick={() => handleScanResult('ANDIAMO-EVENT-2024')}
-          className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm"
-        >
-          🧪 Test ANDIAMO QR
-        </button>
-        <button
-          onClick={() => handleScanResult('INVALID-TEST-123')}
-          className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm"
-        >
-          🧪 Test Invalid QR
-        </button>
-        <button
-          onClick={() => setDebugMode(!debugMode)}
-          className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm ${
-            debugMode ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-600 hover:bg-gray-700'
-          }`}
-        >
-          {debugMode ? '🔇 Disable Debug' : '🔊 Enable Debug'}
+          <Image className="w-5 h-5" />
+          Capture & Analyze
         </button>
       </div>
 
-                {/* Captured Image Display */}
+      {/* File Upload (Hidden but accessible) */}
+      <div className="mb-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-lg text-sm"
+        >
+          📁 Upload Photo to Analyze
+        </button>
+      </div>
+
+          {/* Captured Image Display */}
           {capturedImage && (
             <div className="mb-4">
               <h3 className="text-sm font-medium mb-2 text-gray-300">Captured Image</h3>
