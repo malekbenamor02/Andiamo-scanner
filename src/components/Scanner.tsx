@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, Upload, Image } from 'lucide-react'
+import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, Image } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useOfflineStore } from '../hooks/useOfflineStore'
 import jsQR from 'jsqr'
