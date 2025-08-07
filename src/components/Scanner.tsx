@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, LogOut, ArrowRight } from 'lucide-react'
+import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, LogOut, ArrowRight, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useOfflineStore } from '../hooks/useOfflineStore'
 import jsQR from 'jsqr'
@@ -35,6 +35,10 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [systemHealth, setSystemHealth] = useState<'healthy' | 'warning' | 'critical'>('healthy')
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
+  const [offlineData, setOfflineData] = useState<any>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -57,16 +61,49 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     // Load events
     loadEvents()
     
-    // Check online status
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+    // Check online status and system health
+    const handleOnline = () => {
+      setIsOnline(true)
+      setSystemHealth('healthy')
+      // Test database connection
+      testDatabaseConnection()
+    }
+    
+    const handleOffline = () => {
+      setIsOnline(false)
+      setSystemHealth('warning')
+    }
+    
+    // Test database connection periodically
+    const testDatabaseConnection = async () => {
+      try {
+        const { data, error } = await supabase.from('events').select('count').limit(1)
+        if (error) {
+          setSystemHealth('critical')
+          console.error('Database connection failed:', error)
+        } else {
+          setSystemHealth('healthy')
+          setLastSyncTime(new Date())
+        }
+      } catch (error) {
+        setSystemHealth('critical')
+        console.error('Database test failed:', error)
+      }
+    }
+    
+    // Test connection every 30 seconds
+    const healthCheckInterval = setInterval(testDatabaseConnection, 30000)
     
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     
+    // Initial health check
+    testDatabaseConnection()
+    
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      clearInterval(healthCheckInterval)
     }
   }, [ambassador])
 
@@ -244,16 +281,16 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     console.log('Video ready, scanning for QR codes...')
 
     try {
-      // Set canvas dimensions
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      
-      // Draw video frame to canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    // Set canvas dimensions
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    
+    // Draw video frame to canvas
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
-      // Get image data for QR detection
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      
+    // Get image data for QR detection
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    
       // Simple QR detection with error handling
       let code = null
       
@@ -278,14 +315,14 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       }
       
       if (code && code.data) {
-        console.log('QR Code detected:', code.data)
+      console.log('QR Code detected:', code.data)
         
         // Prevent rapid re-scanning of the same QR code
         if (isProcessingQR || lastScannedCode === code.data) {
           console.log('Skipping QR code - already processing or recently scanned')
-          return
-        }
-        
+      return
+    }
+
         setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
         setIsProcessingQR(true)
         
@@ -321,7 +358,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
         if ((window as any).scanCount % 100 === 0) {
           console.log('Continuing scan loop...')
         }
-        animationRef.current = requestAnimationFrame(detectQR)
+    animationRef.current = requestAnimationFrame(detectQR)
       } else {
         console.log('Scanning stopped, not continuing loop')
       }
@@ -375,18 +412,18 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
           // Ticket not found in database
           try {
             const { error: scanError } = await supabase.from('scans').insert({
-              ticket_id: qrData,
-              event_id: selectedEvent,
-              ambassador_id: ambassador.id,
-              device_info: deviceInfo,
-              scan_location: scanLocation,
-              scan_time: new Date().toISOString(),
+            ticket_id: qrData,
+            event_id: selectedEvent,
+            ambassador_id: ambassador.id,
+            device_info: deviceInfo,
+            scan_location: scanLocation,
+            scan_time: new Date().toISOString(),
               scan_result: 'invalid'
-            })
+          })
 
             if (scanError) {
               console.error('Error recording invalid scan:', scanError)
-            } else {
+          } else {
               console.log('✅ Invalid scan recorded successfully:', {
                 ticket_id: qrData,
                 event_id: selectedEvent,
@@ -396,22 +433,22 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
             }
 
             result = { success: false, message: '❌ Invalid ticket - not found in database' }
-          } catch (error) {
-            console.error('Database error:', error)
-            await addScanRecord(scanData)
+        } catch (error) {
+          console.error('Database error:', error)
+          await addScanRecord(scanData)
             result = { success: false, message: '❌ Invalid ticket - stored offline' }
-          }
-        } else {
+        }
+      } else {
           // Ticket found - check if it's for the correct event
           if (ticket.event_id !== selectedEvent) {
-            try {
-              await supabase.from('scans').insert({
-                ticket_id: qrData,
-                event_id: selectedEvent,
-                ambassador_id: ambassador.id,
-                device_info: deviceInfo,
-                scan_location: scanLocation,
-                scan_time: new Date().toISOString(),
+        try {
+          await supabase.from('scans').insert({
+            ticket_id: qrData,
+            event_id: selectedEvent,
+            ambassador_id: ambassador.id,
+            device_info: deviceInfo,
+            scan_location: scanLocation,
+            scan_time: new Date().toISOString(),
                 scan_result: 'wrong_event'
               })
               result = { success: false, message: '❌ Ticket is for a different event' }
@@ -502,9 +539,9 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                   message: `✅ Valid ticket scanned! Customer: ${ticket.customer_name}, Type: ${ticket.ticket_type}`,
                   ticket: ticket
                 }
-              } catch (error) {
-                console.error('Database error:', error)
-                await addScanRecord(scanData)
+        } catch (error) {
+          console.error('Database error:', error)
+          await addScanRecord(scanData)
                 result = { 
                   success: true, 
                   message: `✅ Valid ticket - stored offline. Customer: ${ticket.customer_name}`,
@@ -543,7 +580,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       deviceInfo: deviceInfo,
       scanLocation: scanLocation
     }
-    
+
     // Add to scan history
     setScanHistory(prev => [detailedResult, ...prev.slice(0, 4)]) // Keep last 5 scans
     setScanResult(detailedResult)
@@ -559,6 +596,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     
     // Show next button after 2 seconds
     setTimeout(() => {
+      console.log('Showing Next button...')
       setShowNextButton(true)
     }, 2000)
     
@@ -585,7 +623,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     setTimeout(() => {
       console.log('Starting QR detection after delay...')
       console.log('isScanningRef.current:', isScanningRef.current)
-      detectQR()
+    detectQR()
     }, 1000) // Wait 1 second for video to be ready
   }
 
@@ -611,6 +649,66 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     console.log('Ready for next scan')
   }
 
+  const downloadOfflineData = async () => {
+    if (!selectedEvent) {
+      alert('Please select an event first')
+      return
+    }
+
+    setIsDownloading(true)
+    try {
+      // Download tickets for the selected event
+      const { data: tickets, error: ticketsError } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('event_id', selectedEvent)
+
+      if (ticketsError) {
+        throw ticketsError
+      }
+
+      // Download event data
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', selectedEvent)
+        .single()
+
+      if (eventError) {
+        throw eventError
+      }
+
+      // Store in IndexedDB for offline use
+      const offlineData = {
+        tickets: tickets || [],
+        event: eventData,
+        downloadedAt: new Date().toISOString(),
+        eventId: selectedEvent
+      }
+
+      // Store in localStorage for simplicity (or use IndexedDB)
+      localStorage.setItem('offlineData', JSON.stringify(offlineData))
+      setOfflineData(offlineData)
+
+      alert(`✅ Downloaded ${tickets?.length || 0} tickets for offline use`)
+      console.log('Offline data downloaded:', offlineData)
+    } catch (error) {
+      console.error('Failed to download offline data:', error)
+      alert('❌ Failed to download offline data. Please try again.')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const validateTicketOffline = (qrCode: string) => {
+    if (!offlineData || !offlineData.tickets) {
+      return null
+    }
+
+    const ticket = offlineData.tickets.find((t: any) => t.qr_code === qrCode)
+    return ticket || null
+  }
+
 
 
 
@@ -633,14 +731,15 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
         </div>
       ) : (
         <>
-          {/* Header */}
-          <div className="mb-6">
-            <div className="text-center mb-4">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="text-center mb-4">
               <h1 className="text-3xl font-bold mb-2 text-white">QR Scanner</h1>
               <p className="text-gray-300 text-lg">Welcome, {ambassador?.full_name}</p>
-              
-              {/* Online/Offline Status */}
-              <div className="flex items-center justify-center mt-3">
+          
+                        {/* System Health Status */}
+              <div className="flex items-center justify-center gap-2 mt-3">
+                {/* Connection Status */}
                 {isOnline ? (
                   <div className="flex items-center bg-green-900/50 px-3 py-1 rounded-full">
                     <Wifi className="w-4 h-4 text-green-400 mr-2" />
@@ -649,14 +748,43 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                 ) : (
                   <div className="flex items-center bg-red-900/50 px-3 py-1 rounded-full">
                     <WifiOff className="w-4 h-4 text-red-400 mr-2" />
-                    <span className="text-sm text-red-300">Offline Mode</span>
+                    <span className="text-sm text-red-300">Offline</span>
+                  </div>
+                )}
+                
+                {/* System Health Indicator */}
+                <div className={`flex items-center px-3 py-1 rounded-full ${
+                  systemHealth === 'healthy' ? 'bg-green-900/50' :
+                  systemHealth === 'warning' ? 'bg-yellow-900/50' :
+                  'bg-red-900/50'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full mr-2 ${
+                    systemHealth === 'healthy' ? 'bg-green-400' :
+                    systemHealth === 'warning' ? 'bg-yellow-400' :
+                    'bg-red-400'
+                  }`}></div>
+                  <span className={`text-sm ${
+                    systemHealth === 'healthy' ? 'text-green-300' :
+                    systemHealth === 'warning' ? 'text-yellow-300' :
+                    'text-red-300'
+                  }`}>
+                    {systemHealth === 'healthy' ? 'Healthy' :
+                     systemHealth === 'warning' ? 'Warning' :
+                     'Critical'}
+                  </span>
+                </div>
+                
+                {/* Last Sync Time */}
+                {lastSyncTime && (
+                  <div className="text-xs text-gray-400">
+                    Sync: {lastSyncTime.toLocaleTimeString()}
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+        </div>
+      </div>
 
-          {/* Event Selection */}
+                {/* Event Selection */}
           <div className="mb-6">
             <label className="block text-lg font-semibold mb-3 text-white">Select Event</label>
             <select
@@ -671,35 +799,63 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                 </option>
               ))}
             </select>
+            
+            {/* Download Offline Data Button */}
+            {selectedEvent && (
+              <div className="mt-3">
+                <button
+                  onClick={downloadOfflineData}
+                  disabled={isDownloading}
+                  className="w-full flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-4 py-3 rounded-xl font-semibold text-white transition-colors"
+                >
+                  {isDownloading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5" />
+                      Download Offline Data
+                    </>
+                  )}
+                </button>
+                {offlineData && (
+                  <div className="mt-2 text-sm text-green-400 text-center">
+                    ✅ {offlineData.tickets?.length || 0} tickets available offline
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Camera Feed */}
-          <div className="mb-6">
-            <div className="relative">
-              <video
-                ref={videoRef}
+      {/* Camera Feed */}
+      <div className="mb-6">
+        <div className="relative">
+          <video
+            ref={videoRef}
                 className={`w-full h-80 object-cover rounded-xl border-4 ${
-                  isInitialized ? 'border-green-500' : 'border-gray-600'
-                }`}
-                autoPlay
-                playsInline
-                muted
-                webkit-playsinline="true"
-                x5-playsinline="true"
-                x5-video-player-type="h5"
-                x5-video-player-fullscreen="true"
-              />
-              <canvas
-                ref={canvasRef}
-                className="hidden"
-              />
-              
-              {/* Scanning Overlay */}
-              {isScanning && isInitialized && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              isInitialized ? 'border-green-500' : 'border-gray-600'
+            }`}
+            autoPlay
+            playsInline
+            muted
+            webkit-playsinline="true"
+            x5-playsinline="true"
+            x5-video-player-type="h5"
+            x5-video-player-fullscreen="true"
+          />
+          <canvas
+            ref={canvasRef}
+            className="hidden"
+          />
+          
+          {/* Scanning Overlay */}
+          {isScanning && isInitialized && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="border-4 border-green-500 rounded-xl bg-transparent w-64 h-64"></div>
-                </div>
-              )}
+            </div>
+          )}
 
               {/* Scan Result Message */}
               {scanResult ? (
@@ -731,40 +887,40 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                 </div>
               ) : detectionMessage ? (
                 <div className="absolute top-4 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl text-center font-semibold text-lg shadow-lg">
-                  {detectionMessage}
-                </div>
-              ) : null}
-              
-              {/* Status Badge */}
-              {isInitialized && (
-                <div className="absolute top-4 right-4 bg-green-600 text-white text-sm px-3 py-1 rounded-full font-semibold">
-                  LIVE
-                </div>
-              )}
+              {detectionMessage}
             </div>
-          </div>
+              ) : null}
+          
+          {/* Status Badge */}
+          {isInitialized && (
+                <div className="absolute top-4 right-4 bg-green-600 text-white text-sm px-3 py-1 rounded-full font-semibold">
+              LIVE
+            </div>
+          )}
+        </div>
+      </div>
 
-          {/* Controls */}
-          <div className="flex gap-4 mb-6">
-            {!isScanning ? (
-              <button
-                onClick={startScanning}
-                disabled={!selectedEvent}
+      {/* Controls */}
+      <div className="flex gap-4 mb-6">
+        {!isScanning ? (
+          <button
+            onClick={startScanning}
+            disabled={!selectedEvent}
                 className="flex-1 flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
-              >
+          >
                 <Camera className="w-6 h-6" />
-                Start Scanning
-              </button>
-            ) : (
-              <button
-                onClick={stopScanning}
+            Start Scanning
+          </button>
+        ) : (
+          <button
+            onClick={stopScanning}
                 className="flex-1 flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-semibold text-lg transition-colors"
-              >
+          >
                 <XCircle className="w-6 h-6" />
-                Stop Scanning
-              </button>
-            )}
-          </div>
+            Stop Scanning
+          </button>
+        )}
+      </div>
 
 
 
@@ -870,6 +1026,11 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
 
             {/* Next Button */}
             {showNextButton && scanResult && (
+              <>
+                {console.log('Next button should be visible - showNextButton:', showNextButton, 'scanResult:', !!scanResult)}
+              </>
+            )}
+            {showNextButton && scanResult && (
               <div className="flex justify-center mb-6">
                 <button
                   onClick={handleNextScan}
@@ -880,6 +1041,17 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                 </button>
               </div>
             )}
+
+            {/* Debug: Always show Next button for testing */}
+            <div className="flex justify-center mb-6">
+              <button
+                onClick={handleNextScan}
+                className="flex items-center gap-3 bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-semibold text-lg transition-colors shadow-lg"
+              >
+                <ArrowRight className="w-6 h-6" />
+                Test Next Scan (Always Visible)
+              </button>
+            </div>
 
             {/* Scan History */}
             {scanHistory.length > 0 && (
@@ -895,7 +1067,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                         : 'bg-red-900/30 border border-red-500/30'
                     }`}>
                       <div className="flex items-center gap-3 mb-2">
-                        {result.success ? (
+                      {result.success ? (
                           <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
                         ) : result.message.includes('already used') ? (
                           <XCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
@@ -932,11 +1104,39 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
             )}
           </div>
 
-          {/* Offline Queue Info */}
-          {!isOnline && (
+                {/* System Status Alerts */}
+          {systemHealth === 'critical' && (
+            <div className="mt-6 p-4 bg-red-900/50 border border-red-600 rounded-xl">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
+                <h3 className="text-red-200 font-semibold">System Critical</h3>
+              </div>
+              <p className="text-red-200 text-sm">
+                Database connection failed. Scans will be stored offline. Contact support if this persists.
+              </p>
+            </div>
+          )}
+          
+          {!isOnline && systemHealth !== 'critical' && (
             <div className="mt-6 p-4 bg-yellow-900/50 border border-yellow-600 rounded-xl">
-              <p className="text-yellow-200 text-center">
-                Scans will be stored offline and synced when connection is restored.
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                <h3 className="text-yellow-200 font-semibold">Offline Mode</h3>
+              </div>
+              <p className="text-yellow-200 text-sm">
+                No internet connection. Scans will be stored offline and synced when connection is restored.
+              </p>
+            </div>
+          )}
+          
+          {systemHealth === 'warning' && isOnline && (
+            <div className="mt-6 p-4 bg-yellow-900/50 border border-yellow-600 rounded-xl">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                <h3 className="text-yellow-200 font-semibold">Connection Warning</h3>
+              </div>
+              <p className="text-yellow-200 text-sm">
+                Database connection is slow. Scans may be delayed.
               </p>
             </div>
           )}
