@@ -77,7 +77,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     // Test database connection periodically
     const testDatabaseConnection = async () => {
       try {
-        const { data, error } = await supabase.from('events').select('count').limit(1)
+        const { error } = await supabase.from('events').select('count').limit(1)
         if (error) {
           setSystemHealth('critical')
           console.error('Database connection failed:', error)
@@ -700,14 +700,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     }
   }
 
-  const validateTicketOffline = (qrCode: string) => {
-    if (!offlineData || !offlineData.tickets) {
-      return null
-    }
 
-    const ticket = offlineData.tickets.find((t: any) => t.qr_code === qrCode)
-    return ticket || null
-  }
 
 
 
