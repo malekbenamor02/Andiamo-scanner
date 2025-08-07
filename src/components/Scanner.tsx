@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, LogOut } from 'lucide-react'
+import { Camera, Wifi, WifiOff, CheckCircle, XCircle, History, LogOut, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useOfflineStore } from '../hooks/useOfflineStore'
 import jsQR from 'jsqr'
@@ -14,6 +14,12 @@ interface ScanResult {
   success: boolean
   message: string
   ticket?: any
+  scanTime?: string
+  ambassadorName?: string
+  eventName?: string
+  qrCode?: string
+  deviceInfo?: string
+  scanLocation?: string
 }
 
 interface ScannerProps {
@@ -326,6 +332,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
   const [detectionMessage, setDetectionMessage] = useState<string>('')
   const [isProcessingQR, setIsProcessingQR] = useState(false)
+  const [showNextButton, setShowNextButton] = useState(false)
 
 
   const handleScanResult = async (qrData: string) => {
@@ -523,9 +530,23 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       }
     }
 
+    // Get current event name
+    const currentEvent = events.find(e => e.id === selectedEvent)
+    
+    // Create detailed result with all scan information
+    const detailedResult: ScanResult = {
+      ...result,
+      scanTime: new Date().toLocaleString(),
+      ambassadorName: ambassador?.full_name || 'Unknown',
+      eventName: currentEvent?.name || 'Unknown Event',
+      qrCode: qrData,
+      deviceInfo: deviceInfo,
+      scanLocation: scanLocation
+    }
+    
     // Add to scan history
-    setScanHistory(prev => [result, ...prev.slice(0, 4)]) // Keep last 5 scans
-    setScanResult(result)
+    setScanHistory(prev => [detailedResult, ...prev.slice(0, 4)]) // Keep last 5 scans
+    setScanResult(detailedResult)
 
     // Clear the last scanned code after 3 seconds to allow re-scanning
     setTimeout(() => setLastScannedCode(''), 3000)
@@ -535,6 +556,11 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     
     // Clear scan result after 5 seconds
     setTimeout(() => setScanResult(null), 5000)
+    
+    // Show next button after 2 seconds
+    setTimeout(() => {
+      setShowNextButton(true)
+    }, 2000)
     
     // Reset processing state after 4 seconds to allow new scans
     setTimeout(() => {
@@ -567,6 +593,22 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     setIsScanning(false)
     isScanningRef.current = false
     stopCamera()
+  }
+
+  const handleNextScan = () => {
+    // Clear all scan-related states
+    setScanResult(null)
+    setDetectionMessage('')
+    setLastScannedCode('')
+    setIsProcessingQR(false)
+    setShowNextButton(false)
+    
+    // Reset scan counter for fresh start
+    if ((window as any).scanCount) {
+      (window as any).scanCount = 0
+    }
+    
+    console.log('Ready for next scan')
   }
 
 
@@ -739,7 +781,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                   ? 'bg-yellow-900/50 border-yellow-500'
                   : 'bg-red-900/50 border-red-500'
               }`}>
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 mb-4">
                   {scanResult.success ? (
                     <CheckCircle className="w-6 h-6 text-green-400" />
                   ) : scanResult.message.includes('already used') ? (
@@ -756,7 +798,86 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                     }
                   </span>
                 </div>
-                <p className="text-lg text-gray-200">{scanResult.message}</p>
+                
+                {/* Main Result Message */}
+                <p className="text-lg text-gray-200 mb-4">{scanResult.message}</p>
+                
+                {/* Detailed Scan Information */}
+                <div className="bg-gray-800/50 rounded-lg p-4 space-y-2">
+                  <h4 className="font-semibold text-gray-300 mb-3">📋 Scan Details</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">🕒 Time:</span>
+                      <span className="text-gray-200">{scanResult.scanTime}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">👤 Ambassador:</span>
+                      <span className="text-gray-200">{scanResult.ambassadorName}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">🎫 Event:</span>
+                      <span className="text-gray-200">{scanResult.eventName}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">📍 Location:</span>
+                      <span className="text-gray-200">{scanResult.scanLocation}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">📱 Device:</span>
+                      <span className="text-gray-200 text-xs">{scanResult.deviceInfo?.split(' - ')[1] || 'Unknown'}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">🔗 QR Code:</span>
+                      <span className="text-gray-200 text-xs font-mono">{scanResult.qrCode}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Ticket Details (if available) */}
+                  {scanResult.ticket && (
+                    <div className="mt-4 pt-3 border-t border-gray-700">
+                      <h5 className="font-semibold text-gray-300 mb-2">🎫 Ticket Information</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">👤 Customer:</span>
+                          <span className="text-gray-200">{scanResult.ticket.customer_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">🎫 Type:</span>
+                          <span className="text-gray-200">{scanResult.ticket.ticket_type}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">📊 Status:</span>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            scanResult.ticket.status === 'active' ? 'bg-green-600 text-white' :
+                            scanResult.ticket.status === 'used' ? 'bg-yellow-600 text-white' :
+                            'bg-red-600 text-white'
+                          }`}>
+                            {scanResult.ticket.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Next Button */}
+            {showNextButton && scanResult && (
+              <div className="flex justify-center mb-6">
+                <button
+                  onClick={handleNextScan}
+                  className="flex items-center gap-3 bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-xl font-semibold text-lg transition-colors shadow-lg"
+                >
+                  <ArrowRight className="w-6 h-6" />
+                  Next Scan
+                </button>
               </div>
             )}
 
@@ -766,21 +887,21 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                 <h3 className="text-lg font-semibold mb-4 text-white">Recent Scans</h3>
                 <div className="space-y-3">
                   {scanHistory.slice(1).map((result, index) => (
-                    <div key={index} className={`flex items-center gap-3 p-4 rounded-lg ${
+                    <div key={index} className={`p-4 rounded-lg ${
                       result.success 
                         ? 'bg-green-900/30 border border-green-500/30' 
                         : result.message.includes('already used')
                         ? 'bg-yellow-900/30 border border-yellow-500/30'
                         : 'bg-red-900/30 border border-red-500/30'
                     }`}>
-                      {result.success ? (
-                        <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-                      ) : result.message.includes('already used') ? (
-                        <XCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
-                      ) : (
-                        <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-                      )}
-                      <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        {result.success ? (
+                          <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                        ) : result.message.includes('already used') ? (
+                          <XCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                        )}
                         <div className="font-medium text-sm">
                           {result.success 
                             ? 'Valid' 
@@ -789,7 +910,20 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
                             : 'Invalid'
                           }
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">{result.message}</div>
+                        <div className="text-xs text-gray-400 ml-auto">
+                          {result.scanTime}
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-gray-400 mb-2">{result.message}</div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                        <div>👤 {result.ambassadorName}</div>
+                        <div>🎫 {result.eventName}</div>
+                        <div>🔗 {result.qrCode?.substring(0, 8)}...</div>
+                        {result.ticket && (
+                          <div>👤 {result.ticket.customer_name}</div>
+                        )}
                       </div>
                     </div>
                   ))}
