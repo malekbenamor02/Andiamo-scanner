@@ -39,6 +39,7 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
   const [offlineData, setOfflineData] = useState<any>(null)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [processingProgress, setProcessingProgress] = useState(0)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -47,6 +48,27 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
   const isScanningRef = useRef(false)
   
   const { addScanRecord } = useOfflineStore()
+  
+  // Audio feedback functions
+  const playSuccessSound = () => {
+    try {
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT')
+      audio.volume = 0.3
+      audio.play()
+    } catch (error) {
+      console.log('Audio playback failed:', error)
+    }
+  }
+  
+  const playErrorSound = () => {
+    try {
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT')
+      audio.volume = 0.2
+      audio.play()
+    } catch (error) {
+      console.log('Audio playback failed:', error)
+    }
+  }
 
   useEffect(() => {
     // Check if ambassador is authenticated
@@ -144,17 +166,20 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
         throw new Error('Camera access requires HTTPS or local network. Please use HTTPS or connect to localhost/local network.')
       }
 
-      // iOS-compatible camera constraints with optimized settings for QR scanning
+      // Enhanced camera constraints for better performance and QR detection
       const constraints = {
         video: {
           facingMode: 'environment', // Use back camera
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
+          width: { min: 640, ideal: 1920, max: 2560 }, // Higher resolution for better QR detection
+          height: { min: 480, ideal: 1080, max: 1440 },
           aspectRatio: { ideal: 1.7777777778 }, // 16:9
-          frameRate: { min: 15, ideal: 30, max: 60 }, // Optimized for QR scanning
+          frameRate: { min: 10, ideal: 24, max: 30 }, // Reduced for better performance
           focusMode: 'continuous', // Auto-focus for better QR detection
           exposureMode: 'continuous', // Auto-exposure
-          whiteBalanceMode: 'continuous' // Auto white balance
+          whiteBalanceMode: 'continuous', // Auto white balance
+          // Additional optimizations for mobile devices
+          deviceId: undefined, // Let browser choose best camera
+          groupId: undefined
         }
       }
 
@@ -291,26 +316,54 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     // Get image data for QR detection
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     
-      // Simple QR detection with error handling
+      // Optimized QR detection with multiple strategies
       let code = null
       
+      // Strategy 1: Standard detection (fastest)
       try {
-        // Try standard detection first
         code = jsQR(imageData.data, imageData.width, imageData.height)
-        console.log('Standard QR detection attempt completed')
+        if (code) {
+          console.log('QR detected with standard method')
+        }
       } catch (error) {
         console.log('QR detection error (standard):', error)
       }
       
-      // If no code found, try with different settings
+      // Strategy 2: Inversion detection (if standard fails)
       if (!code) {
         try {
           code = jsQR(imageData.data, imageData.width, imageData.height, {
             inversionAttempts: "attemptBoth",
           })
-          console.log('Inversion QR detection attempt completed')
+          if (code) {
+            console.log('QR detected with inversion method')
+          }
         } catch (error) {
           console.log('QR detection error (inversion):', error)
+        }
+      }
+      
+      // Strategy 3: Downscaled detection for better performance (if still no code)
+      if (!code && imageData.width > 640) {
+        try {
+          // Create a smaller canvas for faster processing
+          const smallCanvas = document.createElement('canvas')
+          const smallCtx = smallCanvas.getContext('2d')
+          smallCanvas.width = 640
+          smallCanvas.height = 480
+          
+          // Draw scaled image
+          smallCtx?.drawImage(canvas, 0, 0, 640, 480)
+          const smallImageData = smallCtx?.getImageData(0, 0, 640, 480)
+          
+          if (smallImageData) {
+            code = jsQR(smallImageData.data, smallImageData.width, smallImageData.height)
+            if (code) {
+              console.log('QR detected with downscaled method')
+            }
+          }
+        } catch (error) {
+          console.log('QR detection error (downscaled):', error)
         }
       }
       
@@ -325,9 +378,28 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
 
         setDetectionMessage(`🎯 QR Code Detected: ${code.data}`)
         setIsProcessingQR(true)
+        setProcessingProgress(0)
+        
+        // Simulate progress for better UX
+        const progressInterval = setInterval(() => {
+          setProcessingProgress(prev => {
+            if (prev >= 90) {
+              clearInterval(progressInterval)
+              return 90
+            }
+            return prev + 10
+          })
+        }, 100)
         
         // Automatically analyze the QR code
-        handleScanResult(code.data)
+        handleScanResult(code.data).finally(() => {
+          setProcessingProgress(100)
+          clearInterval(progressInterval)
+          setTimeout(() => {
+            setIsProcessingQR(false)
+            setProcessingProgress(0)
+          }, 500)
+        })
         
         // Don't return here - continue scanning for next QR code
       } else {
@@ -351,18 +423,19 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
       // Continue scanning even if there's an error
     }
 
-    // Continue scanning with a small delay for better performance
+        // Continue scanning with optimized timing for better performance
     setTimeout(() => {
       if (isScanningRef.current) {
         // Only log occasionally to avoid spam
         if ((window as any).scanCount % 100 === 0) {
           console.log('Continuing scan loop...')
         }
-    animationRef.current = requestAnimationFrame(detectQR)
+        // Use requestAnimationFrame for smooth performance
+        animationRef.current = requestAnimationFrame(detectQR)
       } else {
         console.log('Scanning stopped, not continuing loop')
       }
-    }, 200) // 200ms delay between scans for better performance
+    }, 150) // Reduced delay for faster scanning while maintaining performance
   }
 
   const [lastScannedCode, setLastScannedCode] = useState<string>('')
@@ -584,6 +657,13 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
     // Add to scan history
     setScanHistory(prev => [detailedResult, ...prev.slice(0, 4)]) // Keep last 5 scans
     setScanResult(detailedResult)
+    
+    // Play audio feedback based on result
+    if (detailedResult.success) {
+      playSuccessSound()
+    } else {
+      playErrorSound()
+    }
 
     // Clear the last scanned code after 3 seconds to allow re-scanning
     setTimeout(() => setLastScannedCode(''), 3000)
@@ -843,12 +923,44 @@ const Scanner: React.FC<ScannerProps> = ({ ambassador, onNavigateToHistory }) =>
             className="hidden"
           />
           
-          {/* Scanning Overlay */}
-          {isScanning && isInitialized && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="border-4 border-green-500 rounded-xl bg-transparent w-64 h-64"></div>
-            </div>
-          )}
+                        {/* QR Code Targeting Frame */}
+              {isScanning && isInitialized && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="relative">
+                    {/* Outer frame */}
+                    <div className="w-64 h-64 border-2 border-white/80 rounded-lg relative">
+                      {/* Corner indicators */}
+                      <div className="absolute -top-1 -left-1 w-6 h-6 border-l-4 border-t-4 border-green-400 rounded-tl-lg"></div>
+                      <div className="absolute -top-1 -right-1 w-6 h-6 border-r-4 border-t-4 border-green-400 rounded-tr-lg"></div>
+                      <div className="absolute -bottom-1 -left-1 w-6 h-6 border-l-4 border-b-4 border-green-400 rounded-bl-lg"></div>
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 border-r-4 border-b-4 border-green-400 rounded-br-lg"></div>
+                      
+                      {/* Scanning line animation */}
+                      <div className="absolute top-0 left-0 w-full h-0.5 bg-green-400 animate-pulse"></div>
+                    </div>
+                    
+                    {/* Center dot */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-green-400 rounded-full"></div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Processing Progress Indicator */}
+              {isProcessingQR && (
+                <div className="absolute bottom-4 left-4 right-4 bg-gray-800/90 backdrop-blur-sm rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-white font-semibold">Processing QR Code...</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${processingProgress}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-center text-white text-sm mt-1">{processingProgress}%</div>
+                </div>
+              )}
 
               {/* Scan Result Message */}
               {scanResult ? (
